@@ -9,4 +9,6 @@ public interface UserService {
 
     UserDTO registerUser(UserDTO userDTO);
 
+    UserDTO loginUser(UserDTO userDTO);
+
 }

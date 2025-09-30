@@ -36,5 +36,24 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
 
         return UserDTO;
     }
+
+    @Override
+        public UserDTO loginUser(UserDTO userDTO) {
+            User user = userRepository.findByUsername(userDTO.getUsername());
+            if (user != null && passwordEncoder.matches(userDTO.getPassword(), user.getPassword())) {
+                return new UserDTO(
+                    user.getUserId(),
+                    user.getUsername(),
+                    null, // Do not return password
+                    user.getEmail(),
+                    user.getFullName(),
+                    user.getPhoneNumber(),
+                    user.getRole(),
+                    user.getStatus(),
+                    user.getDealerId()
+                );
+            }
+            return null; // or throw an exception
+        }
  
 }
