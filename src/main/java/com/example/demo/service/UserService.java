@@ -7,6 +7,6 @@ import com.example.demo.dto.UserDTO;
 @Service
 public interface UserService {
 
-    String registerUser(UserDTO userDTO);
+    UserDTO registerUser(UserDTO userDTO);
 
 }

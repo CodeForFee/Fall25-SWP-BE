@@ -3,6 +3,7 @@ package com.example.demo.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.demo.dto.UserDTO;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 
@@ -16,7 +17,7 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Override
-    public String registerUser(com.example.demo.dto.UserDTO UserDTO) {
+    public UserDTO registerUser(com.example.demo.dto.UserDTO UserDTO) {
 
         User User = new User(
         UserDTO.getUserId(),
@@ -33,7 +34,7 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
         userRepository.save(User);
 
 
-        return "User registered successfully: " + UserDTO.getUsername();
+        return UserDTO;
     }
  
 }
