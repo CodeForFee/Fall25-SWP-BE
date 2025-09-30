@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import org.springframework.stereotype.Service;
 
+import com.example.demo.dto.LoginDTO;
 import com.example.demo.dto.UserDTO;
 
 @Service
@@ -9,6 +10,6 @@ public interface UserService {
 
     UserDTO registerUser(UserDTO userDTO);
 
-    UserDTO loginUser(UserDTO userDTO);
+    String loginUser(LoginDTO loginDTO);
 
 }

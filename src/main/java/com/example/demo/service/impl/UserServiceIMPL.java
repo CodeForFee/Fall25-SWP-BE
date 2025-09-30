@@ -1,11 +1,16 @@
 package com.example.demo.service.impl;
 
+import java.sql.Date;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.demo.dto.LoginDTO;
 import com.example.demo.dto.UserDTO;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
+
+import io.jsonwebtoken.Jwts;
 
 @Service
 public class UserServiceIMPL implements com.example.demo.service.UserService {
@@ -20,8 +25,7 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
     public UserDTO registerUser(com.example.demo.dto.UserDTO UserDTO) {
 
         User User = new User(
-        UserDTO.getUserId(),
-            UserDTO.getUsername(),
+            UserDTO.getUserId(),
             this.passwordEncoder.encode(UserDTO.getPassword()),
             UserDTO.getEmail(),
             UserDTO.getFullName(),
@@ -38,22 +42,21 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
     }
 
     @Override
-        public UserDTO loginUser(UserDTO userDTO) {
-            User user = userRepository.findByUsername(userDTO.getUsername());
-            if (user != null && passwordEncoder.matches(userDTO.getPassword(), user.getPassword())) {
-                return new UserDTO(
-                    user.getUserId(),
-                    user.getUsername(),
-                    null, // Do not return password
-                    user.getEmail(),
-                    user.getFullName(),
-                    user.getPhoneNumber(),
-                    user.getRole(),
-                    user.getStatus(),
-                    user.getDealerId()
-                );
-            }
-            return null; // or throw an exception
+    public String loginUser(LoginDTO loginDTO) {
+        User user = userRepository.findByEmail(loginDTO.getEmail())
+            .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
+        
+        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Sai mật khẩu");
         }
+        
+        String token = Jwts.builder()
+                            .setSubject(user.getEmail())
+                            .setExpiration(new Date(System.currentTimeMillis() + 24))
+                            .compact();
+        
+        return token;
+    }
+
  
 }

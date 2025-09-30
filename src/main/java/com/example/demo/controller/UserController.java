@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,7 +11,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-
+import com.example.demo.dto.LoginDTO;
 import com.example.demo.dto.UserDTO;
 import com.example.demo.service.UserService;
 @RestController
@@ -25,7 +26,6 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/register")
-    @Operation(summary = "Register new user")
     public UserDTO register(@RequestBody UserDTO userDTO) {
         
         UserDTO user = userService.registerUser(userDTO);
@@ -33,11 +33,11 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public UserDTO login(@RequestBody UserDTO userDTO) {
-        UserDTO user = userService.loginUser(userDTO);
-        return user;
-    }    
+    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
 
+        String token = userService.loginUser(loginDTO);
+        return ResponseEntity.ok(token);
+    }
     
 
 }
