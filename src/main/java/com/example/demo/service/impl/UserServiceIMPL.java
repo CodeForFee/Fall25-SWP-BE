@@ -26,8 +26,8 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
 
         User User = new User(
             UserDTO.getUserId(),
-            this.passwordEncoder.encode(UserDTO.getPassword()),
             UserDTO.getEmail(),
+            this.passwordEncoder.encode(UserDTO.getPassword()),
             UserDTO.getFullName(),
             UserDTO.getPhoneNumber(),
             UserDTO.getRole(),
