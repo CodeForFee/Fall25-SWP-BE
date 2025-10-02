@@ -1,13 +1,21 @@
 package com.example.demo.service.impl;
 
-import java.sql.Date;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.example.demo.dto.UserResponseDTO;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.UserStatus;
+import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jwt.JWTClaimNames;
+import com.nimbusds.jwt.JWTClaimsSet;
 import jdk.jshell.spi.ExecutionControl;
+import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,8 +27,12 @@ import com.example.demo.repository.UserRepository;
 
 import io.jsonwebtoken.Jwts;
 
+@Slf4j
 @Service
 public class UserServiceIMPL implements com.example.demo.service.UserService {
+
+    @NonFinal
+    protected static final String SIGNER_KEY = "eQ0elqeCs4ul76KFSm5/1qycbAsHYBG8FEnUut6V/BY3bAVhO8TO0JjmPzVxIzum";
 
     @Autowired
     private UserRepository userRepository;
@@ -93,7 +105,27 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
         if(!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
             throw new RuntimeException("Password Do Not Match");
         }
-        return "login-success";
+        var token = generateToken(loginDTO.getEmail());
+        return token;
+    }
+
+    private String generateToken(String email) {
+        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
+        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
+                .subject(email)
+                .issuer("localhost")
+                .issueTime(new Date())
+                .expirationTime(new Date(Instant.now().plus(8, ChronoUnit.HOURS).toEpochMilli()))
+                .build();
+        Payload payload = new Payload(jwtClaimsSet.toJSONObject());
+        JWSObject jwsObject = new JWSObject(header,payload);
+        try {
+            jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
+            return jwsObject.serialize();
+        } catch (JOSEException e) {
+            log.error("Can not create Token",e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

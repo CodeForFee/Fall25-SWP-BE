@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.demo.dto.LoginDTO;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -22,7 +24,7 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    // AUTH
+
     @PostMapping("/register")
     @Operation(summary = "Đăng ký user mới")
     public UserResponseDTO register(@RequestBody UserDTO userDTO) {
@@ -31,11 +33,12 @@ public class UserController {
 
     @PostMapping("/login")
     @Operation(summary = "Đăng nhập")
-    public String login(@RequestBody LoginDTO loginDTO) {
-        return userService.loginUser(loginDTO);
+    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
+        String token = userService.loginUser(loginDTO);
+        return ResponseEntity.ok(Map.of("token",token));
     }
 
-    // CRUD
+
     @GetMapping
     @Operation(summary = "Lấy tất cả users")
     public List<UserResponseDTO> getAllUsers() {
