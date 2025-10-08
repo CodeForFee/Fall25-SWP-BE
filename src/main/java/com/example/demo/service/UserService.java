@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.UserResponseDTO;
+import com.example.demo.entity.User;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 
@@ -26,4 +27,5 @@ public interface UserService {
     List<UserResponseDTO> getUserByRoles(String role);
     UserResponseDTO updateUserStatus(Integer userId, String status);
     List<UserResponseDTO> getUsersByDealer(Integer dealerId);
+    User getUserByEmail(String email);
 }

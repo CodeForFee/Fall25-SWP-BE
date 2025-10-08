@@ -31,12 +31,12 @@ public class UserController {
         return userService.registerUser(userDTO);
     }
 
-    @PostMapping("/login")
-    @Operation(summary = "Đăng nhập")
-    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
-        String token = userService.loginUser(loginDTO);
-        return ResponseEntity.ok(Map.of("token",token));
-    }
+//    @PostMapping("/login")
+//    @Operation(summary = "Đăng nhập")
+//    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
+//        String token = userService.loginUser(loginDTO);
+//        return ResponseEntity.ok(Map.of("token",token));
+//    }
 
 
     @GetMapping

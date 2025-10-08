@@ -1,22 +1,15 @@
 package com.example.demo.service.impl;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.example.demo.dto.UserResponseDTO;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.UserStatus;
-import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimNames;
-import com.nimbusds.jwt.JWTClaimsSet;
-import jdk.jshell.spi.ExecutionControl;
-import lombok.experimental.NonFinal;
+import com.example.demo.service.JwtService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,33 +18,27 @@ import com.example.demo.dto.UserDTO;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 
-import io.jsonwebtoken.Jwts;
-
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class UserServiceIMPL implements com.example.demo.service.UserService {
 
-    @NonFinal
-    protected static final String SIGNER_KEY = "eQ0elqeCs4ul76KFSm5/1qycbAsHYBG8FEnUut6V/BY3bAVhO8TO0JjmPzVxIzum";
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
+    // Sử dụng @Lazy để tránh circular dependency
+    @Lazy
+    private final JwtService jwtService;
 
     @Override
     public UserResponseDTO registerUser(UserDTO userDTO) {
         try {
             System.out.println("=== START REGISTER USER ===");
 
-            // Check if email already exists
             if (userRepository.existsByEmail(userDTO.getEmail())) {
                 throw new RuntimeException("Email đã tồn tại");
             }
 
-            // Check if phone number already exists
             if (userRepository.existsByPhoneNumber(userDTO.getPhoneNumber())) {
                 throw new RuntimeException("Số điện thoại đã tồn tại");
             }
@@ -60,7 +47,6 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
             user.setUsername(userDTO.getUsername() != null && !userDTO.getUsername().isEmpty()
                     ? userDTO.getUsername()
                     : userDTO.getEmail());
-
             user.setEmail(userDTO.getEmail());
             user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
             user.setFullName(userDTO.getFullName());
@@ -78,7 +64,6 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
             throw new RuntimeException("Lỗi server: " + e.getMessage());
         }
     }
-
 
     private UserResponseDTO convertToResponseDTO(User user) {
         try {
@@ -105,27 +90,14 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
         if(!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
             throw new RuntimeException("Password Do Not Match");
         }
-        var token = generateToken(loginDTO.getEmail());
+        var token = jwtService.generateToken(loginDTO.getEmail(), user.getRole().name());
         return token;
     }
 
-    private String generateToken(String email) {
-        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(email)
-                .issuer("localhost")
-                .issueTime(new Date())
-                .expirationTime(new Date(Instant.now().plus(8, ChronoUnit.HOURS).toEpochMilli()))
-                .build();
-        Payload payload = new Payload(jwtClaimsSet.toJSONObject());
-        JWSObject jwsObject = new JWSObject(header,payload);
-        try {
-            jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
-            return jwsObject.serialize();
-        } catch (JOSEException e) {
-            log.error("Can not create Token",e);
-            throw new RuntimeException(e);
-        }
+    @Override
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
     }
 
     @Override
@@ -151,7 +123,6 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
         User existingUser = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User Not Found"));
 
-        // Cập nhật username nếu có
         if (userDTO.getUsername() != null && !userDTO.getUsername().isEmpty()) {
             existingUser.setUsername(userDTO.getUsername());
         }
@@ -191,7 +162,6 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
         return convertToResponseDTO(updatedUser);
     }
 
-
     @Override
     public List<UserResponseDTO> getUserByRoles(String role) {
         return userRepository.findByRole(role).stream()
@@ -220,5 +190,4 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
 }
