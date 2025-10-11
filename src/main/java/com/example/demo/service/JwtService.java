@@ -12,6 +12,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,6 +28,7 @@ public class JwtService {
                     .issuer("localhost")
                     .issueTime(new Date())
                     .expirationTime(new Date(Instant.now().plus(8, ChronoUnit.HOURS).toEpochMilli()))
+                    .jwtID(UUID.randomUUID().toString())
                     .claim("role", role)
                     .build();
 
