@@ -20,7 +20,7 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    @Operation(summary = "Đăng nhập và nhận thông tin role")
+    @Operation(summary = "Đăng nhập và nhận JWT token", description = "Đăng nhập vào hệ thống và nhận JWT token để truy cập các API được bảo vệ")
     public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
         try {
             String token = userService.loginUser(loginDTO);
