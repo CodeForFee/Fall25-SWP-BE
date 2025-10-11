@@ -26,7 +26,7 @@ public class UserServiceIMPL implements com.example.demo.service.UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Sử dụng @Lazy để tránh circular dependency
+
     @Lazy
     private final JwtService jwtService;
 

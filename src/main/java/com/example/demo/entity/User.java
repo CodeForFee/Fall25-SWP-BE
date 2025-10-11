@@ -6,6 +6,8 @@ import lombok.Setter;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
@@ -17,7 +19,7 @@ public class User {
     @Id
     @Column(name = "userId")
     @GeneratedValue(strategy = GenerationType.AUTO)
-    private int userId;
+    private Integer userId;
 
     @Column(name = "username", nullable = false, unique = true)
     private String username;
@@ -44,4 +46,8 @@ public class User {
 
     @Column(name = "dealerId")
     private Integer dealerId;
+
+    // Liên kết One-to-Many với Promotion
+    @OneToMany(mappedBy = "createdBy", fetch = FetchType.LAZY)
+    private List<Promotion> promotions;
 }

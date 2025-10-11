@@ -42,7 +42,8 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/api/auth/**",
                                 "/api/users/login",
-                                "/api/users/register"
+                                "/api/users/register",
+                                "/api/promotions/**"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/dealer_manager/**").hasRole("DEALER_MANAGER")
