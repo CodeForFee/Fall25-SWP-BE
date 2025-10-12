@@ -5,6 +5,4 @@ public enum Role {
     DEALER_MANAGER,
     DEALER_STAFF,
     EVM_MANAGER,
-    USER
-
 }

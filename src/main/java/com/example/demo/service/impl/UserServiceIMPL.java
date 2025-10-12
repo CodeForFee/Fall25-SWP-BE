@@ -56,8 +56,8 @@ public class UserServiceIMPL implements UserService {
             user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
             user.setFullName(userDTO.getFullName());
             user.setPhoneNumber(userDTO.getPhoneNumber());
-            user.setRole(userDTO.getRole() != null ? userDTO.getRole() : Role.USER);
-            user.setStatus(userDTO.getStatus() != null ? userDTO.getStatus() : UserStatus.ACTIVE);
+            user.setRole(userDTO.getRole());
+            user.setStatus(userDTO.getStatus());
             user.setDealerId(userDTO.getDealerId());
 
             User savedUser = userRepository.save(user);
