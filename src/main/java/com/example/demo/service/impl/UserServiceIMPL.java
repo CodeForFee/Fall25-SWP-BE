@@ -214,43 +214,4 @@ public class UserServiceIMPL implements UserService {
     }
 
 
-    @PostConstruct
-    public void initTestData() {
-        try {
-            // Kiểm tra nếu chưa có user admin
-            if (!userRepository.existsByEmail("admin@example.com")) {
-                UserDTO adminDTO = new UserDTO();
-                adminDTO.setUsername("admin");
-                adminDTO.setPassword("123456");
-                adminDTO.setEmail("admin@example.com");
-                adminDTO.setFullName("Admin User");
-                adminDTO.setPhoneNumber("0912345678");
-                adminDTO.setRole(Role.ADMIN);
-                adminDTO.setStatus(UserStatus.ACTIVE);
-
-                registerUser(adminDTO);
-                log.info("=== TEST ADMIN USER CREATED ===");
-                log.info("Email: admin@example.com");
-                log.info("Password: 123456");
-            }
-
-            // Kiểm tra nếu chưa có user thường
-            if (!userRepository.existsByEmail("user@example.com")) {
-                UserDTO userDTO = new UserDTO();
-                userDTO.setUsername("user");
-                userDTO.setPassword("123456");
-                userDTO.setEmail("user@example.com");
-                userDTO.setFullName("Regular User");
-                userDTO.setPhoneNumber("0923456789");
-                userDTO.setRole(Role.USER);
-                userDTO.setStatus(UserStatus.ACTIVE);
-
-                registerUser(userDTO);
-                log.info("=== TEST USER CREATED ===");
-            }
-        } catch (Exception e) {
-            log.info("Test users already exist or error: " + e.getMessage());
-        }
-    }
-
 }
