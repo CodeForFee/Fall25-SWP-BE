@@ -44,26 +44,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String jwt = authHeader.substring(7);
             final String userEmail = jwtService.extractEmail(jwt);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                if (jwtService.verifyToken(jwt)) {
-                    var user = userService.getUserByEmail(userEmail);
-                    String role = "ROLE_" + user.getRole().name();
+            if (userEmail == null) {
+                sendErrorResponse(response, "Invalid token");
+                return;
+            }
 
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    user,
-                                    null,
-                                    Collections.singletonList(new SimpleGrantedAuthority(role))
-                            );
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                boolean isTokenValid = jwtService.verifyToken(jwt);
 
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                if (!isTokenValid) {
+                    sendErrorResponse(response, "Invalid or expired token");
+                    return;
                 }
+
+                var user = userService.getUserByEmail(userEmail);
+                String authority = "ROLE_" + user.getRole();
+
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                                user,
+                                null,
+                                Collections.singletonList(new SimpleGrantedAuthority(authority))
+                        );
+
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         } catch (Exception e) {
-            log.error("Cannot set user authentication: {}", e.getMessage());
+            log.error("Authentication error", e);
+            sendErrorResponse(response, "Authentication failed");
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\": \"" + message + "\"}");
     }
 }

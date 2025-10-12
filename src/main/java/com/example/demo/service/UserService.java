@@ -23,7 +23,7 @@ public interface UserService {
     UserResponseDTO updateUser(Integer userId,UserDTO userDTO);
     void deleteUser(Integer userId);
 
-    UserResponseDTO updateUserRole(Integer userId, String roleId);
+    UserResponseDTO updateUserRole(Integer userId, String role);
     List<UserResponseDTO> getUserByRoles(String role);
     UserResponseDTO updateUserStatus(Integer userId, String status);
     List<UserResponseDTO> getUsersByDealer(Integer dealerId);

@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,25 +20,17 @@ import java.util.Map;
 @RequestMapping("/api/users")
 @CrossOrigin
 @Tag(name = "User Management", description = "APIs for user management and authentication")
+@SecurityRequirement(name = "bearer-jwt")
 public class UserController {
 
     @Autowired
     private UserService userService;
-
 
     @PostMapping("/register")
     @Operation(summary = "Đăng ký user mới")
     public UserResponseDTO register(@RequestBody UserDTO userDTO) {
         return userService.registerUser(userDTO);
     }
-
-//    @PostMapping("/login")
-//    @Operation(summary = "Đăng nhập")
-//    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
-//        String token = userService.loginUser(loginDTO);
-//        return ResponseEntity.ok(Map.of("token",token));
-//    }
-
 
     @GetMapping
     @Operation(summary = "Lấy tất cả users")

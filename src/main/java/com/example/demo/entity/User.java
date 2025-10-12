@@ -17,8 +17,8 @@ import java.util.List;
 public class User {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "userId")
-    @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer userId;
 
     @Column(name = "username", nullable = false, unique = true)
@@ -50,4 +50,9 @@ public class User {
     // Liên kết One-to-Many với Promotion
     @OneToMany(mappedBy = "createdBy", fetch = FetchType.LAZY)
     private List<Promotion> promotions;
+
+    // Liên kết Many-to-One với Dealer
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dealerId", insertable = false, updatable = false)
+    private Dealer dealer;
 }

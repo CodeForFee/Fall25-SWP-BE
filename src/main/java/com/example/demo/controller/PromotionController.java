@@ -20,7 +20,7 @@ import java.util.List;
 @CrossOrigin
 @RequiredArgsConstructor
 @Tag(name = "Promotion Management", description = "APIs for managing promotions and discount programs")
-@SecurityRequirement(name = "bearerAuth") // THÊM DÒNG NÀY
+@SecurityRequirement(name = "bearer-jwt")
 public class PromotionController {
 
     private final PromotionService promotionService;
