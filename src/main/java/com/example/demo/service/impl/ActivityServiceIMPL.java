@@ -46,10 +46,10 @@ public class ActivityServiceIMPL implements ActivityService {
         }
     }
 
+    
     @Override
-    public Page<ActivityLog> listMine(Long actorId, String action, Pageable pageable) {
-        return (action == null || action.isBlank())
-                ? repo.findByActorIdOrderByCreatedAtDesc(actorId, pageable)
-                : repo.findByActorIdAndActionOrderByCreatedAtDesc(actorId, action, pageable);
+    public Page<ActivityLog> listMine(Integer actorId, String action, Pageable pageable) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'listMine'");
     }
 }
