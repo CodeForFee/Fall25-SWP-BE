@@ -18,7 +18,7 @@ public class Dealer {
 
     @Id
     @Column(name = "dealerId")
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // ✅ SỬA: AUTO → IDENTITY
     private Integer dealerId;
 
     @Column(name = "name", nullable = false)
@@ -44,4 +44,3 @@ public class Dealer {
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     private List<User> users;
 }
-

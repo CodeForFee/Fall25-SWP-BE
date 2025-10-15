@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +23,22 @@ public class PromotionServiceIMPL implements PromotionService {
 
     private final PromotionRepository promotionRepository;
     private final UserRepository userRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PromotionResponseDTO> getAllPromotions() {
+        return promotionRepository.findAll().stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PromotionResponseDTO getPromotionById(Integer id) {
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Khuyến mãi không tồn tại với ID: " + id));
+        return convertToResponseDTO(promotion);
+    }
 
     @Override
     @Transactional
@@ -41,7 +56,7 @@ public class PromotionServiceIMPL implements PromotionService {
                 throw new RuntimeException("Ngày bắt đầu không thể sau ngày kết thúc");
             }
 
-            // Get user who creates the promotion - SỬA LẠI Ở ĐÂY
+            // Get user who creates the promotion
             User creator = userRepository.findById(promotionDTO.getCreatedBy())
                     .orElseThrow(() -> new RuntimeException("Người tạo không tồn tại"));
 
@@ -65,22 +80,6 @@ public class PromotionServiceIMPL implements PromotionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getAllPromotions() {
-        return promotionRepository.findAll().stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PromotionResponseDTO getPromotionById(Integer id) {
-        Promotion promotion = promotionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Khuyến mãi không tồn tại với ID: " + id));
-        return convertToResponseDTO(promotion);
-    }
-
-    @Override
     @Transactional
     public PromotionResponseDTO updatePromotion(Integer id, PromotionDTO promotionDTO) {
         try {
@@ -88,8 +87,8 @@ public class PromotionServiceIMPL implements PromotionService {
                     .orElseThrow(() -> new RuntimeException("Khuyến mãi không tồn tại với ID: " + id));
 
             // Check if program name is duplicated (excluding current promotion)
-            List<Promotion> duplicatePromotions = promotionRepository.findByProgramNameAndIdNot(promotionDTO.getProgramName(), id);
-            if (!duplicatePromotions.isEmpty()) {
+            if (!existingPromotion.getProgramName().equals(promotionDTO.getProgramName()) &&
+                    promotionRepository.existsByProgramName(promotionDTO.getProgramName())) {
                 throw new RuntimeException("Tên chương trình khuyến mãi đã tồn tại");
             }
 
@@ -98,13 +97,12 @@ public class PromotionServiceIMPL implements PromotionService {
                 throw new RuntimeException("Ngày bắt đầu không thể sau ngày kết thúc");
             }
 
-            // Update user if changed - SỬA LẠI Ở ĐÂY
+            // Update user if changed
             if (existingPromotion.getCreatedBy().getUserId() != promotionDTO.getCreatedBy()) {
                 User newCreator = userRepository.findById(promotionDTO.getCreatedBy())
                         .orElseThrow(() -> new RuntimeException("Người tạo mới không tồn tại"));
                 existingPromotion.setCreatedBy(newCreator);
             }
-
 
             existingPromotion.setProgramName(promotionDTO.getProgramName());
             existingPromotion.setDescription(promotionDTO.getDescription());
@@ -112,7 +110,6 @@ public class PromotionServiceIMPL implements PromotionService {
             existingPromotion.setEndDate(promotionDTO.getEndDate());
             existingPromotion.setConditions(promotionDTO.getConditions());
             existingPromotion.setDiscountValue(promotionDTO.getDiscountValue());
-
 
             // Only update status if provided
             if (promotionDTO.getStatus() != null) {
@@ -136,72 +133,6 @@ public class PromotionServiceIMPL implements PromotionService {
 
         promotionRepository.delete(promotion);
         log.info("Deleted promotion with ID: {}", id);
-    }
-
-    @Override
-    @Transactional
-    public PromotionResponseDTO updatePromotionStatus(Integer id, PromotionStatus status) {
-        Promotion promotion = promotionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Khuyến mãi không tồn tại với ID: " + id));
-
-        promotion.setStatus(status);
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        log.info("Updated promotion status to {} for ID: {}", status, id);
-        return convertToResponseDTO(updatedPromotion);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getPromotionsByStatus(PromotionStatus status) {
-        return promotionRepository.findByStatus(status).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> searchPromotionsByName(String programName) {
-        return promotionRepository.findByProgramNameContainingIgnoreCase(programName).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getActivePromotions(LocalDate date) {
-        LocalDate searchDate = date != null ? date : LocalDate.now();
-        return promotionRepository.findActivePromotions(searchDate).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getExpiredPromotions() {
-        return promotionRepository.findExpiredPromotions(LocalDate.now()).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getPromotionsByUser(Integer userId) {
-        // SỬA LẠI Ở ĐÂY - Sử dụng findById thay vì findById
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User không tồn tại"));
-
-        return promotionRepository.findByCreatedBy(user).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromotionResponseDTO> getPromotionsByDealer(Integer dealerId) {
-        return promotionRepository.findByDealerId(dealerId).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
     }
 
     private PromotionResponseDTO convertToResponseDTO(Promotion promotion) {

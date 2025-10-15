@@ -2,12 +2,12 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.DealerDTO;
 import com.example.demo.dto.DealerResponseDTO;
-import com.example.demo.entity.DealerStatus;
 import com.example.demo.service.DealerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,74 +15,41 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dealers")
 @CrossOrigin
+@RequiredArgsConstructor
 @Tag(name = "Dealer Management", description = "APIs for dealer management")
 @SecurityRequirement(name = "bearer-jwt")
 public class DealerController {
 
-    @Autowired
-    private DealerService dealerService;
-
-    @PostMapping
-    @Operation(summary = "Tạo dealer mới")
-    public DealerResponseDTO createDealer(@RequestBody DealerDTO dealerDTO) {
-        return dealerService.createDealer(dealerDTO);
-    }
+    private final DealerService dealerService;
 
     @GetMapping
     @Operation(summary = "Lấy tất cả dealers")
-    public List<DealerResponseDTO> getAllDealers() {
-        return dealerService.getAllDealers();
+    public ResponseEntity<List<DealerResponseDTO>> getAllDealers() {
+        return ResponseEntity.ok(dealerService.getAllDealers());
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy dealer theo ID")
-    public DealerResponseDTO getDealerById(@PathVariable Integer id) {
-        return dealerService.getDealerById(id);
+    public ResponseEntity<DealerResponseDTO> getDealerById(@PathVariable Integer id) {
+        return ResponseEntity.ok(dealerService.getDealerById(id));
+    }
+
+    @PostMapping
+    @Operation(summary = "Tạo dealer mới")
+    public ResponseEntity<DealerResponseDTO> createDealer(@RequestBody DealerDTO dealerDTO) {
+        return ResponseEntity.ok(dealerService.createDealer(dealerDTO));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật dealer")
-    public DealerResponseDTO updateDealer(@PathVariable Integer id, @RequestBody DealerDTO dealerDTO) {
-        return dealerService.updateDealer(id, dealerDTO);
+    public ResponseEntity<DealerResponseDTO> updateDealer(@PathVariable Integer id, @RequestBody DealerDTO dealerDTO) {
+        return ResponseEntity.ok(dealerService.updateDealer(id, dealerDTO));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa dealer")
-    public String deleteDealer(@PathVariable Integer id) {
+    public ResponseEntity<String> deleteDealer(@PathVariable Integer id) {
         dealerService.deleteDealer(id);
-        return "Dealer deleted successfully";
-    }
-
-    // STATUS
-    @PutMapping("/{id}/status")
-    @Operation(summary = "Cập nhật trạng thái dealer")
-    public DealerResponseDTO updateDealerStatus(@PathVariable Integer id, @RequestParam DealerStatus status) {
-        return dealerService.updateDealerStatus(id, status);
-    }
-
-    @GetMapping("/status/{status}")
-    @Operation(summary = "Lấy dealers theo trạng thái")
-    public List<DealerResponseDTO> getDealersByStatus(@PathVariable DealerStatus status) {
-        return dealerService.getDealersByStatus(status);
-    }
-
-    // REGION
-    @GetMapping("/region/{region}")
-    @Operation(summary = "Lấy dealers theo khu vực")
-    public List<DealerResponseDTO> getDealersByRegion(@PathVariable String region) {
-        return dealerService.getDealersByRegion(region);
-    }
-
-    // SEARCH
-    @GetMapping("/search/name")
-    @Operation(summary = "Tìm kiếm dealers theo tên")
-    public List<DealerResponseDTO> searchDealersByName(@RequestParam String name) {
-        return dealerService.searchDealersByName(name);
-    }
-
-    @GetMapping("/search/representative")
-    @Operation(summary = "Tìm kiếm dealers theo tên đại diện")
-    public List<DealerResponseDTO> searchDealersByRepresentative(@RequestParam String representativeName) {
-        return dealerService.searchDealersByRepresentative(representativeName);
+        return ResponseEntity.ok("Dealer deleted successfully");
     }
 }

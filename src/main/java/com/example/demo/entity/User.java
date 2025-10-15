@@ -44,15 +44,15 @@ public class User {
     @Column(name = "status", nullable = false)
     private UserStatus status;
 
-    @Column(name = "dealerId")
+    @Column(name = "dealerId",nullable = true)
     private Integer dealerId;
 
     // Liên kết One-to-Many với Promotion
     @OneToMany(mappedBy = "createdBy", fetch = FetchType.LAZY)
     private List<Promotion> promotions;
 
-    // Liên kết Many-to-One với Dealer
+    // Liên kết Many-to-One
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "dealerId", insertable = false, updatable = false)
+    @JoinColumn(name = "dealerId", referencedColumnName = "dealerId", insertable = false, updatable = false)
     private Dealer dealer;
 }
