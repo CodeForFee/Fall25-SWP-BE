@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.DealerDTO;
 import com.example.demo.dto.DealerResponseDTO;
 import com.example.demo.service.DealerService;
+import com.example.demo.service.AuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +22,7 @@ import java.util.List;
 public class DealerController {
 
     private final DealerService dealerService;
+    private final AuditLogService auditLogService;
 
     @GetMapping
     @Operation(summary = "Lấy tất cả dealers")
@@ -37,19 +39,34 @@ public class DealerController {
     @PostMapping
     @Operation(summary = "Tạo dealer mới")
     public ResponseEntity<DealerResponseDTO> createDealer(@RequestBody DealerDTO dealerDTO) {
-        return ResponseEntity.ok(dealerService.createDealer(dealerDTO));
+        DealerResponseDTO result = dealerService.createDealer(dealerDTO);
+
+        // Ghi audit log
+        auditLogService.log("CREATE", "Dealer", result.getDealerId().toString(), dealerDTO);
+
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật dealer")
     public ResponseEntity<DealerResponseDTO> updateDealer(@PathVariable Integer id, @RequestBody DealerDTO dealerDTO) {
-        return ResponseEntity.ok(dealerService.updateDealer(id, dealerDTO));
+        DealerResponseDTO result = dealerService.updateDealer(id, dealerDTO);
+
+        // Ghi audit log
+        auditLogService.log("UPDATE", "Dealer", id.toString(), dealerDTO);
+
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa dealer")
     public ResponseEntity<String> deleteDealer(@PathVariable Integer id) {
+        DealerResponseDTO dealer = dealerService.getDealerById(id);
         dealerService.deleteDealer(id);
+
+        // Ghi audit log
+        auditLogService.log("DELETE", "Dealer", id.toString(), dealer);
+
         return ResponseEntity.ok("Dealer deleted successfully");
     }
 }

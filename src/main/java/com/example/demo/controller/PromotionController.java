@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.PromotionDTO;
 import com.example.demo.dto.PromotionResponseDTO;
 import com.example.demo.service.PromotionService;
+import com.example.demo.service.AuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +22,7 @@ import java.util.List;
 public class PromotionController {
 
     private final PromotionService promotionService;
+    private final AuditLogService auditLogService;
 
     @GetMapping
     @Operation(summary = "Lấy tất cả khuyến mãi", description = "Lấy danh sách tất cả các chương trình khuyến mãi")
@@ -37,19 +39,34 @@ public class PromotionController {
     @PostMapping
     @Operation(summary = "Tạo khuyến mãi mới", description = "Tạo một chương trình khuyến mãi mới trong hệ thống")
     public ResponseEntity<PromotionResponseDTO> createPromotion(@RequestBody PromotionDTO promotionDTO) {
-        return ResponseEntity.ok(promotionService.createPromotion(promotionDTO));
+        PromotionResponseDTO result = promotionService.createPromotion(promotionDTO);
+
+        // Ghi audit log
+        auditLogService.log("CREATE", "Promotion", result.getId().toString(), promotionDTO);
+
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật khuyến mãi", description = "Cập nhật thông tin của một khuyến mãi")
     public ResponseEntity<PromotionResponseDTO> updatePromotion(@PathVariable Integer id, @RequestBody PromotionDTO promotionDTO) {
-        return ResponseEntity.ok(promotionService.updatePromotion(id, promotionDTO));
+        PromotionResponseDTO result = promotionService.updatePromotion(id, promotionDTO);
+
+        // Ghi audit log
+        auditLogService.log("UPDATE", "Promotion", id.toString(), promotionDTO);
+
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa khuyến mãi", description = "Xóa một khuyến mãi khỏi hệ thống")
     public ResponseEntity<String> deletePromotion(@PathVariable Integer id) {
+        PromotionResponseDTO promotion = promotionService.getPromotionById(id);
         promotionService.deletePromotion(id);
+
+        // Ghi audit log
+        auditLogService.log("DELETE", "Promotion", id.toString(), promotion);
+
         return ResponseEntity.ok("Khuyến mãi đã được xóa thành công");
     }
 }
