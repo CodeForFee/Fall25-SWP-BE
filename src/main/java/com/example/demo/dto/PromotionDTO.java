@@ -1,6 +1,6 @@
 package com.example.demo.dto;
 
-import com.example.demo.entity.PromotionStatus;
+import com.example.demo.entity.Promotion;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,6 +19,6 @@ public class PromotionDTO {
     private LocalDate endDate;
     private String conditions;
     private Double discountValue;
-    private PromotionStatus status;
+    private Promotion.PromotionStatus status;
     private Integer createdBy; // User ID
 }

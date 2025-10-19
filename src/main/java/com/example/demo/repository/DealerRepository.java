@@ -1,7 +1,6 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Dealer;
-import com.example.demo.entity.DealerStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,7 +16,7 @@ public interface DealerRepository extends JpaRepository<Dealer, Integer> {
     boolean existsByPhone(String phone);
 
     @Query("SELECT d FROM Dealer d WHERE d.status = :status")
-    List<Dealer> findByStatus(@Param("status") DealerStatus status);
+    List<Dealer> findByStatus(@Param("status") Dealer.DealerStatus status);
 
     @Query("SELECT d FROM Dealer d WHERE d.region = :region")
     List<Dealer> findByRegion(@Param("region") String region);

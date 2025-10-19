@@ -17,8 +17,8 @@ import java.util.List;
 public class Dealer {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "dealerId")
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // ✅ SỬA: AUTO → IDENTITY
     private Integer dealerId;
 
     @Column(name = "name", nullable = false)
@@ -43,4 +43,11 @@ public class Dealer {
     // Liên kết One-to-Many
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     private List<User> users;
+
+    @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
+    private List<Order> orders;
+
+    public enum DealerStatus {
+        ACTIVE, INACTIVE, SUSPENDED
+    }
 }

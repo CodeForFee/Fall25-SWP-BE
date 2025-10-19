@@ -1,6 +1,6 @@
 package com.example.demo.dto;
 
-import com.example.demo.entity.DealerStatus;
+import com.example.demo.entity.Dealer;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,5 +17,5 @@ public class DealerResponseDTO {
     private String phone;
     private String representativeName;
     private String region;
-    private DealerStatus status;
+    private Dealer.DealerStatus status;
 }

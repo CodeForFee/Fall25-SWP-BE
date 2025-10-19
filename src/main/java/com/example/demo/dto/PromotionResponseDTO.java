@@ -1,7 +1,7 @@
 package com.example.demo.dto;
 
 
-import com.example.demo.entity.PromotionStatus;
+import com.example.demo.entity.Promotion;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,7 +21,7 @@ public class PromotionResponseDTO {
     private LocalDate endDate;
     private String conditions;
     private Double discountValue;
-    private PromotionStatus status;
+    private Promotion.PromotionStatus status;
 
     // Thông tin user tạo promotion
     private int createdBy;

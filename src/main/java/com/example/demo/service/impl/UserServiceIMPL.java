@@ -4,7 +4,6 @@ import com.example.demo.dto.LoginDTO;
 import com.example.demo.dto.UserDTO;
 import com.example.demo.dto.UserResponseDTO;
 import com.example.demo.entity.User;
-import com.example.demo.entity.UserStatus;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.JwtService;
 import com.example.demo.service.UserService;
@@ -66,7 +65,7 @@ public class UserServiceIMPL implements UserService {
             user.setFullName(userDTO.getFullName());
             user.setPhoneNumber(userDTO.getPhoneNumber());
             user.setRole(userDTO.getRole());
-            user.setStatus(userDTO.getStatus() != null ? userDTO.getStatus() : UserStatus.ACTIVE);
+            user.setStatus(userDTO.getStatus() != null ? userDTO.getStatus() : User.UserStatus.ACTIVE);
             user.setDealerId(userDTO.getDealerId());
 
             User savedUser = userRepository.save(user);

@@ -3,7 +3,6 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.PromotionDTO;
 import com.example.demo.dto.PromotionResponseDTO;
 import com.example.demo.entity.Promotion;
-import com.example.demo.entity.PromotionStatus;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.PromotionRepository;
@@ -67,7 +66,7 @@ public class PromotionServiceIMPL implements PromotionService {
             promotion.setEndDate(promotionDTO.getEndDate());
             promotion.setConditions(promotionDTO.getConditions());
             promotion.setDiscountValue(promotionDTO.getDiscountValue());
-            promotion.setStatus(promotionDTO.getStatus() != null ? promotionDTO.getStatus() : PromotionStatus.DRAFT);
+            promotion.setStatus(promotionDTO.getStatus() != null ? promotionDTO.getStatus() : Promotion.PromotionStatus.DRAFT);
             promotion.setCreatedBy(creator);
 
             Promotion savedPromotion = promotionRepository.save(promotion);

@@ -4,7 +4,6 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.DealerDTO;
 import com.example.demo.dto.DealerResponseDTO;
 import com.example.demo.entity.Dealer;
-import com.example.demo.entity.DealerStatus;
 import com.example.demo.repository.DealerRepository;
 import com.example.demo.service.DealerService;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +50,7 @@ public class DealerServiceIMPL implements DealerService {
             dealer.setPhone(dealerDTO.getPhone());
             dealer.setRepresentativeName(dealerDTO.getRepresentativeName());
             dealer.setRegion(dealerDTO.getRegion());
-            dealer.setStatus(dealerDTO.getStatus() != null ? dealerDTO.getStatus() : DealerStatus.ACTIVE);
+            dealer.setStatus(dealerDTO.getStatus() != null ? dealerDTO.getStatus() : Dealer.DealerStatus.ACTIVE);
 
             Dealer savedDealer = dealerRepository.save(dealer);
             return convertToResponseDTO(savedDealer);

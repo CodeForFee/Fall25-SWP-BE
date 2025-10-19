@@ -55,4 +55,18 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dealerId", referencedColumnName = "dealerId", insertable = false, updatable = false)
     private Dealer dealer;
+
+    public enum UserStatus {
+        ACTIVE,
+        INACTIVE,
+        SUSPENDED,
+        PENDING
+    }
+
+    public enum Role {
+        ADMIN,
+        DEALER_MANAGER,
+        DEALER_STAFF,
+        EVM_MANAGER,
+    }
 }
