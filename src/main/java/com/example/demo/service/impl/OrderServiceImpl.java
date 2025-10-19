@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -80,25 +81,58 @@ public class OrderServiceImpl implements OrderService {
             order.setDealerId(orderDTO.getDealerId());
             order.setUserId(orderDTO.getUserId());
             order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
-            order.setTotalAmount(orderDTO.getTotalAmount());
-            order.setPaidAmount(orderDTO.getPaidAmount() != null ? orderDTO.getPaidAmount() : BigDecimal.ZERO);
-            order.setRemainingAmount(orderDTO.getRemainingAmount() != null ?
-                    orderDTO.getRemainingAmount() : orderDTO.getTotalAmount().subtract(order.getPaidAmount()));
             order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
             order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
             order.setNotes(orderDTO.getNotes());
 
+            // TÍNH TOÁN
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            List<OrderDetail> orderDetails = null;
+            if (orderDTO.getOrderDetails() != null && !orderDTO.getOrderDetails().isEmpty()) {
+                orderDetails = new ArrayList<>();
+
+                for (OrderDetailDTO detailDTO : orderDTO.getOrderDetails()) {
+                    OrderDetail detail = new OrderDetail();
+                    detail.setVehicleId(detailDTO.getVehicleId());
+                    detail.setQuantity(detailDTO.getQuantity());
+                    detail.setUnitPrice(detailDTO.getUnitPrice());
+
+                    // TÍNH TOÁN
+                    BigDecimal itemTotal = detailDTO.getUnitPrice()
+                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+
+                    detail.setTotalAmount(itemTotal);
+                    totalAmount = totalAmount.add(itemTotal);
+
+                    orderDetails.add(detail);
+                }
+
+                order.setTotalAmount(totalAmount);
+            } else {
+                order.setTotalAmount(BigDecimal.ZERO);
+            }
+
+            // TÍNH TOÁN paidAmount và remainingAmount
+            BigDecimal paidAmount = orderDTO.getPaidAmount() != null ?
+                    orderDTO.getPaidAmount() : BigDecimal.ZERO;
+            BigDecimal remainingAmount = totalAmount.subtract(paidAmount);
+
+            order.setPaidAmount(paidAmount);
+            order.setRemainingAmount(remainingAmount);
+
             Order savedOrder = orderRepository.save(order);
 
-            // Save order details
-            if (orderDTO.getOrderDetails() != null && !orderDTO.getOrderDetails().isEmpty()) {
-                List<OrderDetail> orderDetails = orderDTO.getOrderDetails().stream()
-                        .map(detailDTO -> convertToOrderDetail(detailDTO, savedOrder.getId()))
-                        .collect(Collectors.toList());
+            // Set orderId cho các detail và save
+            if (!orderDetails.isEmpty()) { // SỬA ĐIỀU KIỆN Ở ĐÂY
+                for (OrderDetail detail : orderDetails) {
+                    detail.setOrderId(savedOrder.getId());
+                }
                 orderDetailRepository.saveAll(orderDetails);
             }
 
-            log.info("=== ORDER CREATED SUCCESSFULLY ===");
+            log.info("=== ORDER CREATED SUCCESSFULLY - Total: {}, Paid: {}, Remaining: {} ===",
+                    totalAmount, paidAmount, remainingAmount);
             return convertToResponseDTO(savedOrder);
 
         } catch (Exception e) {
@@ -117,29 +151,57 @@ public class OrderServiceImpl implements OrderService {
         existingOrder.setCustomerId(orderDTO.getCustomerId());
         existingOrder.setDealerId(orderDTO.getDealerId());
         existingOrder.setUserId(orderDTO.getUserId());
-        existingOrder.setTotalAmount(orderDTO.getTotalAmount());
-        existingOrder.setPaidAmount(orderDTO.getPaidAmount());
-        existingOrder.setRemainingAmount(orderDTO.getRemainingAmount());
         existingOrder.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
         existingOrder.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         existingOrder.setNotes(orderDTO.getNotes());
+
+        // TÍNH TOÁN LẠI totalAmount khi update
+        BigDecimal totalAmount = BigDecimal.ZERO;
 
         // Update order details
         if (orderDTO.getOrderDetails() != null && !orderDTO.getOrderDetails().isEmpty()) {
             // Delete existing details
             orderDetailRepository.deleteByOrderId(id);
 
-            // Save new details
-            List<OrderDetail> orderDetails = orderDTO.getOrderDetails().stream()
-                    .map(detailDTO -> convertToOrderDetail(detailDTO, id))
-                    .collect(Collectors.toList());
+            // Save new details và tính toán totalAmount
+            List<OrderDetail> orderDetails = new ArrayList<>();
+            for (OrderDetailDTO detailDTO : orderDTO.getOrderDetails()) {
+                OrderDetail detail = new OrderDetail();
+                detail.setOrderId(id);
+                detail.setVehicleId(detailDTO.getVehicleId());
+                detail.setQuantity(detailDTO.getQuantity());
+                detail.setUnitPrice(detailDTO.getUnitPrice());
+
+                // TÍNH TOÁN
+                BigDecimal itemTotal = detailDTO.getUnitPrice()
+                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+
+                detail.setTotalAmount(itemTotal);
+                totalAmount = totalAmount.add(itemTotal);
+
+                orderDetails.add(detail);
+            }
+
             orderDetailRepository.saveAll(orderDetails);
+            existingOrder.setTotalAmount(totalAmount);
+        } else {
+            existingOrder.setTotalAmount(BigDecimal.ZERO);
         }
 
+        // TÍNH TOÁN
+        BigDecimal paidAmount = orderDTO.getPaidAmount() != null ?
+                orderDTO.getPaidAmount() : existingOrder.getPaidAmount();
+        BigDecimal remainingAmount = totalAmount.subtract(paidAmount);
+
+        existingOrder.setPaidAmount(paidAmount);
+        existingOrder.setRemainingAmount(remainingAmount);
+
         Order updatedOrder = orderRepository.save(existingOrder);
-        log.info("=== ORDER UPDATED SUCCESSFULLY ===");
+        log.info("=== ORDER UPDATED SUCCESSFULLY - Total: {}, Paid: {}, Remaining: {} ===",
+                totalAmount, paidAmount, remainingAmount);
         return convertToResponseDTO(updatedOrder);
     }
+
 
     @Override
     @Transactional
@@ -153,16 +215,6 @@ public class OrderServiceImpl implements OrderService {
         // Delete order
         orderRepository.delete(order);
         log.info("=== ORDER DELETED SUCCESSFULLY ===");
-    }
-
-    private OrderDetail convertToOrderDetail(OrderDetailDTO dto, Integer orderId) {
-        OrderDetail detail = new OrderDetail();
-        detail.setOrderId(orderId);
-        detail.setVehicleId(dto.getVehicleId());
-        detail.setQuantity(dto.getQuantity());
-        detail.setUnitPrice(dto.getUnitPrice());
-        detail.setTotalAmount(dto.getTotalAmount());
-        return detail;
     }
 
     private OrderResponseDTO convertToResponseDTO(Order order) {
@@ -197,7 +249,7 @@ public class OrderServiceImpl implements OrderService {
         dto.setVehicleId(detail.getVehicleId());
         dto.setQuantity(detail.getQuantity());
         dto.setUnitPrice(detail.getUnitPrice());
-        dto.setTotalAmount(detail.getTotalAmount());
+        dto.setTotalAmount(detail.getTotalAmount()); // Đã được tính tự động
         return dto;
     }
 }

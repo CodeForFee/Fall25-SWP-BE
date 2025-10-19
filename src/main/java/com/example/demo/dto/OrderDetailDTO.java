@@ -16,5 +16,5 @@ public class OrderDetailDTO {
     private Integer vehicleId;
     private Integer quantity;
     private BigDecimal unitPrice;
-    private BigDecimal totalAmount;
+
 }

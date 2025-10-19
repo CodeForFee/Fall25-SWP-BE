@@ -17,5 +17,4 @@ public class QuoteDetailDTO {
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal promotionDiscount;
-    private BigDecimal totalAmount;
 }

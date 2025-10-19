@@ -19,11 +19,10 @@ public class OrderDTO {
     private Integer dealerId;
     private Integer userId;
     private LocalDate orderDate;
-    private BigDecimal totalAmount;
-    private BigDecimal paidAmount;
-    private BigDecimal remainingAmount;
     private String status;
     private String paymentMethod;
     private String notes;
+    private BigDecimal paidAmount;
     private List<OrderDetailDTO> orderDetails;
+
 }
