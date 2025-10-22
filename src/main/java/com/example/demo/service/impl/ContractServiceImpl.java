@@ -38,7 +38,6 @@ public class ContractServiceImpl implements ContractService {
         try {
             log.info("=== START CREATE CONTRACT ===");
 
-            // Check if contract number already exists
             if (contractRepository.existsByContractNumber(contractDTO.getContractNumber())) {
                 throw new RuntimeException("Số hợp đồng đã tồn tại");
             }
@@ -66,13 +65,13 @@ public class ContractServiceImpl implements ContractService {
         Contract existingContract = contractRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + id));
 
-        // Check if contract number is being changed and if it already exists
+
         if (!existingContract.getContractNumber().equals(contractDTO.getContractNumber()) &&
                 contractRepository.existsByContractNumber(contractDTO.getContractNumber())) {
             throw new RuntimeException("Số hợp đồng đã tồn tại");
         }
 
-        // Update fields
+
         existingContract.setOrderId(contractDTO.getOrderId());
         existingContract.setVin(contractDTO.getVin());
         existingContract.setContractNumber(contractDTO.getContractNumber());

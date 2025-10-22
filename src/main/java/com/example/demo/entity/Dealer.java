@@ -1,3 +1,4 @@
+// Dealer.java
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
@@ -40,12 +41,17 @@ public class Dealer {
     @Column(name = "status", nullable = false)
     private DealerStatus status;
 
-    // Liên kết One-to-Many
+    // Liên kết One-to-Many với User
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     private List<User> users;
 
+    // Liên kết One-to-Many với Order
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     private List<Order> orders;
+
+    // THÊM: Liên kết One-to-Many với Customer
+    @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
+    private List<Customer> customers;
 
     public enum DealerStatus {
         ACTIVE, INACTIVE, SUSPENDED

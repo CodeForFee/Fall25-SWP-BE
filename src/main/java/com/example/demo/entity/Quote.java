@@ -1,3 +1,4 @@
+// Quote.java
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
@@ -37,22 +38,29 @@ public class Quote {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private QuoteStatus status; // SỬA: Dùng QuoteStatus thay vì QuoteDetail.QuoteStatus
+    private QuoteStatus status;
 
     @Column(name = "valid_until")
     private LocalDate validUntil;
 
+    // Liên kết Many-to-One với User
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
     private User user;
 
+    // THÊM: Liên kết Many-to-One với Customer
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Customer customer;
+
+    // Liên kết One-to-Many với QuoteDetail
     @OneToMany(mappedBy = "quote", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<QuoteDetail> quoteDetails;
 
+    // Liên kết One-to-One với Order
     @OneToOne(mappedBy = "quote", fetch = FetchType.LAZY)
     private Order order;
 
-    // THÊM ENUM VÀO ĐÂY
     public enum QuoteStatus {
         DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
     }

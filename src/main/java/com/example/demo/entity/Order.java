@@ -41,6 +41,9 @@ public class Order {
     @Column(name = "total_amount", precision = 15, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "total_discount", precision = 15, scale = 2)
+    private BigDecimal totalDiscount;
+
     @Column(name = "paid_amount", precision = 15, scale = 2)
     private BigDecimal paidAmount;
 

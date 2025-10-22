@@ -27,4 +27,7 @@ public class OrderResponseDTO {
     private String paymentMethod;
     private String notes;
     private List<OrderDetailResponseDTO> orderDetails;
+    private BigDecimal totalDiscount;
+
+
 }
