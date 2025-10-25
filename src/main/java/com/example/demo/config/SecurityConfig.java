@@ -34,16 +34,26 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Cần thay đổi các URL này để phù hợp với URL Frontend của bạn
+        // Cấu hình CORS cho cả local development và Railway deployment
+        // QUAN TRỌNG: Khi allowCredentials=true, KHÔNG được dùng "*" cho origins
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000", // Ví dụ: Frontend chạy trên localhost
-            "https://ten-frontend-cua-ban.railway.app" // URL thật của Frontend trên Railway
-            // Nếu bạn cần cho phép tất cả các domain, dùng: Arrays.asList("*") (không khuyến khích cho Production)
+            "http://localhost:3000", // Frontend local development
+            "http://localhost:3001",
+            "http://localhost:8080",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8080",
+            "https://fall25-swp-be-production-9b48.up.railway.app", // Railway backend URL
+            "https://localhost:3000", // HTTPS local development
+            "https://127.0.0.1:3000"
+            // Thêm domain frontend thật của bạn ở đây khi deploy production
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*")); // Cho phép tất cả headers
-        configuration.setAllowCredentials(true); // Cho phép gửi cookies/Authorization headers
+        configuration.setAllowCredentials(true); // Cho phép gửi cookies/Authorization headers (JWT)
+
+        // QUAN TRỌNG: Khi allowCredentials=true, phải specify exact origins, KHÔNG được dùng "*"
+        // Vì credentials (cookies, authorization headers) chỉ được gửi đến specific domains
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration); // Áp dụng cấu hình cho tất cả các đường dẫn
