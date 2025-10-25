@@ -38,11 +38,11 @@ public class SecurityConfig {
         // QUAN TRỌNG: Khi allowCredentials=true, KHÔNG được dùng "*" cho origins
         configuration.setAllowedOrigins(Arrays.asList(
             "http://localhost:3000", // Frontend local development
-            "http://localhost:3001",
             "http://localhost:8080",
             "http://127.0.0.1:3000",
             "http://127.0.0.1:8080",
             "https://fall25-swp-be-production-9b48.up.railway.app", // Railway backend URL
+            "http://fall25-swp-be-production-9b48.up.railway.app", // Railway backend URL
             "https://localhost:3000", // HTTPS local development
             "https://127.0.0.1:3000"
             // Thêm domain frontend thật của bạn ở đây khi deploy production
