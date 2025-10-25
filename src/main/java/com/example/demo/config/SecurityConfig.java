@@ -16,6 +16,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 
 import java.util.Arrays;
 
@@ -101,11 +102,21 @@ public class SecurityConfig {
     // Bean cấu hình OpenAPI/Swagger
     @Bean
     public OpenAPI customOpenAPI() {
+        // Cấu hình server URLs để đảm bảo Swagger sử dụng đúng protocol (HTTPS cho production)
+        Server productionServer = new Server()
+                .url("https://fall25-swp-be-production-9b48.up.railway.app")
+                .description("Production Server (Railway - HTTPS)");
+        
+        Server localServer = new Server()
+                .url("http://localhost:8080")
+                .description("Local Development Server");
+        
         return new OpenAPI()
                 .info(new Info()
                         .title("EVDMS API")
                         .version("1.0.0")
                         .description("API Documentation for Electric Vehicle Dealer Management System"))
+                .servers(Arrays.asList(productionServer, localServer))
                 .components(new Components()
                         .addSecuritySchemes("bearer-jwt", 
                             new SecurityScheme()
