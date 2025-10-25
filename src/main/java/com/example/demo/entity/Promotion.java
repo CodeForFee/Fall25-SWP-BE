@@ -47,4 +47,11 @@ public class Promotion {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "userId")
     private User createdBy;
+
+    public enum PromotionStatus {
+        ACTIVE,
+        INACTIVE,
+        EXPIRED,
+        DRAFT
+    }
 }

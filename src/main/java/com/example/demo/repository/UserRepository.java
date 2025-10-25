@@ -1,4 +1,3 @@
-// UserRepository.java
 package com.example.demo.repository;
 
 import com.example.demo.entity.User;
@@ -17,7 +16,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     boolean existsByPhoneNumber(String phoneNumber);
 
     @Query("SELECT u FROM User u WHERE u.role = :role")
-    List<User> findByRole(@Param("role") String role);
+    List<User> findByRole(@Param("role") User.Role role);
 
     @Query("SELECT u FROM User u WHERE u.dealerId = :dealerId")
     List<User> findByDealerId(@Param("dealerId") Integer dealerId);

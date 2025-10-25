@@ -1,7 +1,6 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Promotion;
-import com.example.demo.entity.PromotionStatus;
 import com.example.demo.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,7 +15,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
 
     List<Promotion> findByProgramNameContainingIgnoreCase(String programName);
 
-    List<Promotion> findByStatus(PromotionStatus status);
+    List<Promotion> findByStatus(Promotion.PromotionStatus status);
 
     // Tìm promotions theo user
     List<Promotion> findByCreatedBy(User user);

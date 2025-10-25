@@ -59,14 +59,4 @@ public class RoleDashboardController {
         );
     }
 
-    @GetMapping("/user/dashboard")
-    @PreAuthorize("hasRole('USER')")
-    @Operation(summary = "Dashboard cho USER")
-    public Map<String, String> userDashboard() {
-        return Map.of(
-                "message", "Chào mừng đến USER Dashboard",
-                "role", "USER",
-                "description", "Đây là trang dashboard dành cho USER"
-        );
-    }
 }

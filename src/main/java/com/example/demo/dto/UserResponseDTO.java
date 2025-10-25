@@ -1,7 +1,6 @@
 package com.example.demo.dto;
 
-import com.example.demo.entity.Role;
-import com.example.demo.entity.UserStatus;
+import com.example.demo.entity.User;
 import lombok.*;
 
 @AllArgsConstructor
@@ -14,8 +13,8 @@ public class UserResponseDTO {
     private String email;
     private String fullName;
     private String phoneNumber;
-    private Role role;
-    private UserStatus status;
+    private User.Role role;
+    private User.UserStatus status;
     private Integer dealerId;
 }
 

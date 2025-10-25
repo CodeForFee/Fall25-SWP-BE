@@ -13,12 +13,12 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
-@Table(name = "`user`")
+@Table(name = "Users")
 public class User {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "userId")
-    @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer userId;
 
     @Column(name = "username", nullable = false, unique = true)
@@ -44,10 +44,29 @@ public class User {
     @Column(name = "status", nullable = false)
     private UserStatus status;
 
-    @Column(name = "dealerId")
+    @Column(name = "dealerId",nullable = true)
     private Integer dealerId;
 
     // Liên kết One-to-Many với Promotion
     @OneToMany(mappedBy = "createdBy", fetch = FetchType.LAZY)
     private List<Promotion> promotions;
+
+    // Liên kết Many-to-One
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dealerId", referencedColumnName = "dealerId", insertable = false, updatable = false)
+    private Dealer dealer;
+
+    public enum UserStatus {
+        ACTIVE,
+        INACTIVE,
+        SUSPENDED,
+        PENDING
+    }
+
+    public enum Role {
+        ADMIN,
+        DEALER_MANAGER,
+        DEALER_STAFF,
+        EVM_MANAGER,
+    }
 }

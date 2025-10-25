@@ -20,7 +20,7 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    @Operation(summary = "Đăng nhập và nhận thông tin role")
+    @Operation(summary = "Đăng nhập và nhận JWT token")
     public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
         try {
             String token = userService.loginUser(loginDTO);
@@ -28,9 +28,8 @@ public class AuthController {
 
             return ResponseEntity.ok(Map.of(
                     "token", token,
-                    "role", user.getRole().name(),
-                    "redirectPath", "/api/" + user.getRole().name().toLowerCase() + "/dashboard",
-                    "message", "Đăng nhập thành công! Role: " + user.getRole().name()
+                    "role", user.getRole(),
+                    "message", "Đăng nhập thành công"
             ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

@@ -4,13 +4,17 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
-
-public class LoginDTO {
+public class CustomerResponseDTO {
+    private Integer id;
+    private String fullName;
+    private String phone;
     private String email;
-    private String password;
-
+    private String citizenId;
+    private Integer dealerId;
+    private String dealerName;
 }
