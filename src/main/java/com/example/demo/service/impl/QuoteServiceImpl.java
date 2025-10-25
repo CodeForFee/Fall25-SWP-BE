@@ -59,7 +59,7 @@ public class QuoteServiceImpl implements QuoteService {
     @Transactional
     public QuoteResponseDTO createQuote(QuoteDTO quoteDTO) {
         try {
-            log.info("=== START CREATE QUOTE ===");
+            log.debug("Creating quote for customer: {}", quoteDTO.getCustomerId());
 
             Quote quote = new Quote();
             quote.setCustomerId(quoteDTO.getCustomerId());
@@ -102,17 +102,17 @@ public class QuoteServiceImpl implements QuoteService {
                 }
                 quoteDetailRepository.saveAll(quoteDetails);
 
-                log.info("=== QUOTE CREATED SUCCESSFULLY - Total Amount: {} ===", totalAmount);
+                log.info("Quote created successfully - Total Amount: {}", totalAmount);
                 return convertToResponseDTO(savedQuote);
             } else {
                 quote.setTotalAmount(BigDecimal.ZERO);
                 Quote savedQuote = quoteRepository.save(quote);
-                log.info("=== QUOTE CREATED SUCCESSFULLY - No details ===");
+                log.info("Quote created successfully - No details");
                 return convertToResponseDTO(savedQuote);
             }
 
         } catch (Exception e) {
-            log.error("!!! ERROR IN CREATE QUOTE !!!", e);
+            log.error("Error creating quote: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi server khi tạo báo giá: " + e.getMessage());
         }
     }
@@ -165,7 +165,7 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         Quote updatedQuote = quoteRepository.save(existingQuote);
-        log.info("=== QUOTE UPDATED SUCCESSFULLY - Total Amount: {} ===", totalAmount);
+        log.debug("Quote updated successfully - Total Amount: {}", totalAmount);
         return convertToResponseDTO(updatedQuote);
     }
 
@@ -181,7 +181,7 @@ public class QuoteServiceImpl implements QuoteService {
 
         // Delete quote
         quoteRepository.delete(quote);
-        log.info("=== QUOTE DELETED SUCCESSFULLY ===");
+        log.debug("Quote deleted successfully");
     }
 
     @Override
@@ -194,7 +194,7 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         quoteRepository.saveAll(expiredQuotes);
-        log.info("=== EXPIRED {} OLD QUOTES ===", expiredQuotes.size());
+        log.info("Expired {} old quotes", expiredQuotes.size());
     }
 
     private QuoteResponseDTO convertToResponseDTO(Quote quote) {
