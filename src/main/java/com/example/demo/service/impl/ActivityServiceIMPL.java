@@ -41,8 +41,8 @@ public class ActivityServiceIMPL implements ActivityService {
 
             repo.save(log);
         } catch (Exception e) {
-            // Không để logging làm hỏng flow
-            System.err.println("[ActivityLog] record failed: " + e.getMessage());
+            // Không để logging làm hỏng flow - chỉ log error nếu cần thiết
+            log.debug("Activity log record failed: {}", e.getMessage());
         }
     }
 

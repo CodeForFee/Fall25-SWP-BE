@@ -36,7 +36,7 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public ContractResponseDTO createContract(ContractDTO contractDTO) {
         try {
-            log.info("=== START CREATE CONTRACT ===");
+            log.debug("Creating contract");
 
             if (contractRepository.existsByContractNumber(contractDTO.getContractNumber())) {
                 throw new RuntimeException("Số hợp đồng đã tồn tại");
@@ -51,11 +51,11 @@ public class ContractServiceImpl implements ContractService {
             contract.setDealerRepresentative(contractDTO.getDealerRepresentative());
 
             Contract savedContract = contractRepository.save(contract);
-            log.info("=== CONTRACT CREATED SUCCESSFULLY ===");
+            log.debug("Contract created successfully");
             return convertToResponseDTO(savedContract);
 
         } catch (Exception e) {
-            log.error("!!! ERROR IN CREATE CONTRACT !!!", e);
+            log.error("Error creating contract: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi server khi tạo hợp đồng: " + e.getMessage());
         }
     }
@@ -80,7 +80,7 @@ public class ContractServiceImpl implements ContractService {
         existingContract.setDealerRepresentative(contractDTO.getDealerRepresentative());
 
         Contract updatedContract = contractRepository.save(existingContract);
-        log.info("=== CONTRACT UPDATED SUCCESSFULLY ===");
+        log.debug("Contract updated successfully");
         return convertToResponseDTO(updatedContract);
     }
 
@@ -89,7 +89,7 @@ public class ContractServiceImpl implements ContractService {
         Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + id));
         contractRepository.delete(contract);
-        log.info("=== CONTRACT DELETED SUCCESSFULLY ===");
+        log.debug("Contract deleted successfully");
     }
 
     private ContractResponseDTO convertToResponseDTO(Contract contract) {

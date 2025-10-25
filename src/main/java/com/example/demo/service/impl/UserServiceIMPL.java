@@ -44,7 +44,7 @@ public class UserServiceIMPL implements UserService {
     @Override
     public UserResponseDTO createUser(UserDTO userDTO) {
         try {
-            log.info("=== START CREATE USER ===");
+            log.debug("Creating user: {}", userDTO.getEmail());
 
             if (userRepository.existsByEmail(userDTO.getEmail())) {
                 throw new RuntimeException("Email đã tồn tại");
@@ -72,7 +72,7 @@ public class UserServiceIMPL implements UserService {
             return convertToResponseDTO(savedUser);
 
         } catch (Exception e) {
-            log.error("!!! ERROR IN CREATE USER !!!", e);
+            log.error("Error creating user: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi server: " + e.getMessage());
         }
     }

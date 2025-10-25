@@ -43,7 +43,7 @@ public class PromotionServiceIMPL implements PromotionService {
     @Transactional
     public PromotionResponseDTO createPromotion(PromotionDTO promotionDTO) {
         try {
-            log.info("Creating new promotion: {}", promotionDTO.getProgramName());
+            log.debug("Creating new promotion: {}", promotionDTO.getProgramName());
 
             // Check if program name already exists
             if (promotionRepository.existsByProgramName(promotionDTO.getProgramName())) {
@@ -131,7 +131,7 @@ public class PromotionServiceIMPL implements PromotionService {
                 .orElseThrow(() -> new RuntimeException("Khuyến mãi không tồn tại với ID: " + id));
 
         promotionRepository.delete(promotion);
-        log.info("Deleted promotion with ID: {}", id);
+        log.debug("Deleted promotion with ID: {}", id);
     }
 
     private PromotionResponseDTO convertToResponseDTO(Promotion promotion) {
