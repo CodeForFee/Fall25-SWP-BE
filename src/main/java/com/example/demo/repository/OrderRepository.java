@@ -1,0 +1,28 @@
+package com.example.demo.repository;
+
+import com.example.demo.entity.Order;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDate;
+import java.util.List;
+import java.math.BigDecimal;
+
+@Repository
+public interface OrderRepository extends JpaRepository<Order, Long> {
+
+    // Số lượng đơn theo trạng thái toàn hệ thống
+    @Query("SELECT o.status, COUNT(o) FROM Order o GROUP BY o.status")
+    List<Object[]> countByStatus();
+
+    // Tổng doanh thu (tổng totalAmount) toàn hệ thống
+    @Query("SELECT COALESCE(SUM(o.totalAmount),0) FROM Order o WHERE o.orderDate BETWEEN :from AND :to")
+    BigDecimal totalSalesBetween(LocalDate from, LocalDate to);
+
+    // Doanh số theo dealer (tổng totalAmount)
+    @Query("SELECT o.dealerId, COALESCE(SUM(o.totalAmount),0) FROM Order o WHERE o.orderDate BETWEEN :from AND :to GROUP BY o.dealerId")
+    List<Object[]> salesByDealerBetween(LocalDate from, LocalDate to);
+
+    // Lấy orders cho dealer trong thời gian
+    List<Order> findByDealerIdAndOrderDateBetween(Long dealerId, LocalDate from, LocalDate to);
+}
