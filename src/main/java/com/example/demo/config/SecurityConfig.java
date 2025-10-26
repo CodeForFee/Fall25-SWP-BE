@@ -21,7 +21,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 
 import java.util.Arrays;
-
+import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -37,40 +37,63 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(Arrays.asList(
+         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:8080",
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:8080",
+                "http://localhost:5173",
+                "http://localhost:5174",
                 "https://fall25-swp-be-production-9b48.up.railway.app",
                 "http://fall25-swp-be-production-9b48.up.railway.app",
                 "https://localhost:3000",
                 "https://127.0.0.1:3000"
         ));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        // ✅ Các method được phép gọi
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        // ✅ Các header được phép gửi
+        configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
+
+        // ✅ Cho phép gửi cookie/token kèm request
         configuration.setAllowCredentials(true);
 
+        // ✅ Cho phép header Authorization trong response
+        configuration.setExposedHeaders(List.of("Authorization"));
+
+        // ✅ Áp dụng cho toàn bộ route
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 
+    // Cấu hình Security
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
-            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+            JwtAuthenticationFilter jwtAuthenticationFilter
+    ) throws Exception {
 
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf.disable()) // Tắt CSRF vì đang dùng JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**").permitAll()
+                        // Swagger & public endpoints
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/api-docs/**"
+                        ).permitAll()
+                        // Public APIs
                         .requestMatchers("/api/users/register", "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/users/**").permitAll()
+                        // OPTIONS request cho preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Các request khác cần JWT
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
@@ -81,7 +104,7 @@ public class SecurityConfig {
     public OpenAPI customOpenAPI() {
         Server productionServer = new Server()
                 .url("https://fall25-swp-be-production-9b48.up.railway.app")
-                .description("Production Server (Railway - HTTPS)");
+                .description("Production Server (Railway)");
 
         Server localServer = new Server()
                 .url("http://localhost:8080")
@@ -91,7 +114,7 @@ public class SecurityConfig {
                 .info(new Info()
                         .title("EVDMS API")
                         .version("1.0.0")
-                        .description("API Documentation for Electric Vehicle Dealer Management System"))
+                        .description("Electric Vehicle Dealer Management System"))
                 .servers(Arrays.asList(productionServer, localServer))
                 .components(new Components()
                         .addSecuritySchemes("bearer-jwt",
