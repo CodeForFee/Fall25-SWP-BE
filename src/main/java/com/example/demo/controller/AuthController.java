@@ -27,6 +27,7 @@ public class AuthController {
             var user = userService.getUserByEmail(loginDTO.getEmail());
 
             return ResponseEntity.ok(Map.of(
+                    "user Id",user.getUserId(),
                     "token", token,
                     "role", user.getRole(),
                     "message", "Đăng nhập thành công"
