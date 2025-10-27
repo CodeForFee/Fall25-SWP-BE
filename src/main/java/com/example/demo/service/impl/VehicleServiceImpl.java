@@ -36,7 +36,7 @@ public class VehicleServiceImpl implements VehicleService {
                 .status(req.getStatus() == null ? "ACTIVE" : req.getStatus())
                 .batteryCapacity(req.getBatteryCapacity())
                 .listedPrice(req.getListedPrice())
-                .specifications(req.getSpecifications())
+                .specifications(convertMapToJson(req.getSpecifications()))
                 .versionJson(req.getVersionJson())
                 .availableColorsJson(req.getAvailableColorsJson())
                 .build();
@@ -59,7 +59,7 @@ public class VehicleServiceImpl implements VehicleService {
         v.setBatteryCapacity(req.getBatteryCapacity());
         v.setListedPrice(req.getListedPrice());
         v.setStatus(req.getStatus());
-        v.setSpecifications(req.getSpecifications());
+        v.setSpecifications(convertMapToJson(req.getSpecifications()));
         v.setVersionJson(req.getVersionJson());
         v.setAvailableColorsJson(req.getAvailableColorsJson());
         if (req.getVehicleTypeId() != null) {
@@ -94,12 +94,7 @@ public class VehicleServiceImpl implements VehicleService {
         Vehicle v = repo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
         if (price != null) v.setListedPrice(price == null ? null : new java.math.BigDecimal(price));
         if (specificationsJson != null) {
-            try {
-                Map<String,Object> specs = objectMapper.readValue(specificationsJson, Map.class);
-                v.setSpecifications(specs);
-            } catch (Exception e) {
-                throw new RuntimeException("Invalid specifications JSON");
-            }
+            v.setSpecifications(specificationsJson);
         }
         return toDto(repo.save(v));
     }
@@ -112,12 +107,31 @@ public class VehicleServiceImpl implements VehicleService {
         return toDto(repo.save(v));
     }
 
+    // ===================== PRIVATE METHODS =====================
+
+    private String convertMapToJson(Map<String, Object> map) {
+        try {
+            return (map == null) ? null : objectMapper.writeValueAsString(map);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi chuyển Map sang JSON", e);
+        }
+    }
+
+    private Map<String, Object> convertJsonToMap(String json) {
+        try {
+            return (json == null || json.isEmpty()) ? null : objectMapper.readValue(json, Map.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi chuyển JSON sang Map", e);
+        }
+    }
+
     private VehicleResponseDTO toDto(Vehicle v) {
         VehicleResponseDTO r = new VehicleResponseDTO();
         r.setId(v.getId());
         r.setModelName(v.getModelName());
         r.setBrand(v.getBrand());
         r.setYearOfManufacture(v.getYearOfManufacture());
+
         if (v.getVehicleType() != null) {
             VehicleTypeResponseDTO vt = new VehicleTypeResponseDTO();
             vt.setId(v.getVehicleType().getId());
@@ -126,7 +140,9 @@ public class VehicleServiceImpl implements VehicleService {
             vt.setStatus(v.getVehicleType().getStatus());
             r.setVehicleType(vt);
         }
-        r.setSpecifications(v.getSpecifications());
+
+        
+        r.setSpecifications(convertJsonToMap(v.getSpecifications()));
         r.setStatus(v.getStatus());
         r.setBatteryCapacity(v.getBatteryCapacity());
         r.setListedPrice(v.getListedPrice());
