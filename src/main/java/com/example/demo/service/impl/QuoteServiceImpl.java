@@ -55,7 +55,7 @@ public class QuoteServiceImpl implements QuoteService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-    
+
     @Override
     @Transactional
     public QuoteResponseDTO createQuote(QuoteDTO quoteDTO) {
@@ -83,7 +83,7 @@ public class QuoteServiceImpl implements QuoteService {
                     detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
                             detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
-
+                   
                     BigDecimal grossAmount = detailDTO.getUnitPrice()
                             .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
                     BigDecimal discountAmount = BigDecimal.ZERO;
