@@ -56,6 +56,10 @@ public class User {
     @JoinColumn(name = "dealerId", referencedColumnName = "dealerId", insertable = false, updatable = false)
     private Dealer dealer;
 
+    // Liên kết 1-1
+    @OneToOne(mappedBy = "user")
+    private ForgotPassword forgotPassword;
+
     public enum UserStatus {
         ACTIVE,
         INACTIVE,
