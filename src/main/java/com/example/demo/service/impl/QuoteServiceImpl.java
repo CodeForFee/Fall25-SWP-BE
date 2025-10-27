@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,7 @@ public class QuoteServiceImpl implements QuoteService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
+    
     @Override
     @Transactional
     public QuoteResponseDTO createQuote(QuoteDTO quoteDTO) {
@@ -68,8 +69,8 @@ public class QuoteServiceImpl implements QuoteService {
             quote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
             quote.setValidUntil(quoteDTO.getValidUntil());
 
-            // TÍNH TOÁN
             BigDecimal totalAmount = BigDecimal.ZERO;
+            BigDecimal totalDiscount = BigDecimal.ZERO;
 
             if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
                 List<QuoteDetail> quoteDetails = new ArrayList<>();
@@ -82,27 +83,34 @@ public class QuoteServiceImpl implements QuoteService {
                     detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
                             detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
-                    // TÍNH TOÁN
-                    BigDecimal itemTotal = detailDTO.getUnitPrice()
-                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()))
-                            .subtract(detail.getPromotionDiscount());
 
-                    detail.setTotalAmount(itemTotal);
-                    totalAmount = totalAmount.add(itemTotal);
+                    BigDecimal grossAmount = detailDTO.getUnitPrice()
+                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+                    BigDecimal discountAmount = BigDecimal.ZERO;
+                    BigDecimal netAmount = grossAmount;
 
+                    if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal discountPercent = detail.getPromotionDiscount()
+                                .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                        discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+                        netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+                    }
+
+                    detail.setTotalAmount(netAmount);
+                    totalAmount = totalAmount.add(netAmount);
+                    totalDiscount = totalDiscount.add(discountAmount);
                     quoteDetails.add(detail);
                 }
 
                 quote.setTotalAmount(totalAmount);
                 Quote savedQuote = quoteRepository.save(quote);
 
-                // Set quoteId cho các detail và save
                 for (QuoteDetail detail : quoteDetails) {
                     detail.setQuoteId(savedQuote.getId());
                 }
                 quoteDetailRepository.saveAll(quoteDetails);
 
-                log.info("Quote created successfully - Total Amount: {}", totalAmount);
+                log.info("Quote created successfully - Total Amount: {}, Total Discount: {}", totalAmount, totalDiscount);
                 return convertToResponseDTO(savedQuote);
             } else {
                 quote.setTotalAmount(BigDecimal.ZERO);
