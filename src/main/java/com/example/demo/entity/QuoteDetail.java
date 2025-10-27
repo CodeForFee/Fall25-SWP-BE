@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "quote_detail")
+@Table(name = "Quote_detail")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,6 +42,11 @@ public class QuoteDetail {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Quote quote;
+
+    // THÊM: Quan hệ với Vehicle
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Vehicle vehicle;
 
     public enum QuoteStatus {
         DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED

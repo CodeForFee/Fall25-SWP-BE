@@ -28,6 +28,7 @@ public class AuthController {
 
             return ResponseEntity.ok(Map.of(
                     "token", token,
+                    "user Id",user.getUserId(),
                     "role", user.getRole(),
                     "message", "Đăng nhập thành công"
             ));
