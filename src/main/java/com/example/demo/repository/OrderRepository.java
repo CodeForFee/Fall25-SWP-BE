@@ -45,6 +45,8 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     List<Order> findByDealer_DealerIdAndOrderDateBetween(Integer dealerId, LocalDate start, LocalDate end);
 
-    // Lấy orders cho dealer trong thời gian
     List<Order> findByDealerIdAndOrderDateBetween(Long dealerId, LocalDate from, LocalDate to);
+
+    //lấy đơn hàng theo role người tạo (hãng hoặc đại lý)
+    List<Order> findByCreatedByRole(Order.CreatedByRole createdByRole);
 }

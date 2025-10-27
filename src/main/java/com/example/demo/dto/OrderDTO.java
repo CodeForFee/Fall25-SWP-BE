@@ -23,6 +23,8 @@ public class OrderDTO {
     private String paymentMethod;
     private String notes;
     private BigDecimal paidAmount;
-    private List<OrderDetailDTO> orderDetails;
 
+    private String createdByRole;
+
+    private List<OrderDetailDTO> orderDetails;
 }
