@@ -25,7 +25,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
-    private final UserRepository userRepository; // 🆕 Thêm repository để lấy thông tin Role của User
+    private final UserRepository userRepository;
 
     // =============================================
     // Lấy danh sách, tìm kiếm, lọc đơn hàng
@@ -73,6 +73,21 @@ public class OrderServiceImpl implements OrderService {
         return convertToResponseDTO(order);
     }
 
+    // ✅ Thêm mới: Lọc theo vai trò người tạo đơn (CreatedByRole)
+    @Override
+    public List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole) {
+        Order.CreatedByRole roleEnum;
+        try {
+            roleEnum = Order.CreatedByRole.valueOf(createdByRole.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Vai trò không hợp lệ: " + createdByRole);
+        }
+
+        return orderRepository.findByCreatedByRole(roleEnum).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     // =============================================
     // Tạo đơn hàng mới
     // =============================================
@@ -85,7 +100,6 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + orderDTO.getQuoteId());
         }
 
-        // 🔍 Lấy thông tin User để gán Role tạo đơn
         User user = userRepository.findById(orderDTO.getUserId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với ID: " + orderDTO.getUserId()));
 
@@ -99,7 +113,6 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
         order.setCreatedByRole(Order.CreatedByRole.valueOf(user.getRole().name()));
-        ; //
 
         // ====== Tính toán tổng tiền và chiết khấu ======
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -138,7 +151,6 @@ public class OrderServiceImpl implements OrderService {
         order.setPaidAmount(paidAmount);
         order.setRemainingAmount(remainingAmount);
 
-        // Lưu đơn hàng
         Order savedOrder = orderRepository.save(order);
         for (OrderDetail detail : orderDetails) {
             detail.setOrderId(savedOrder.getId());
@@ -169,7 +181,6 @@ public class OrderServiceImpl implements OrderService {
         existingOrder.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         existingOrder.setNotes(orderDTO.getNotes());
         existingOrder.setCreatedByRole(Order.CreatedByRole.valueOf(user.getRole().name()));
-
 
         // ====== Tính toán lại chi tiết đơn hàng ======
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -255,7 +266,6 @@ public class OrderServiceImpl implements OrderService {
         dto.setNotes(order.getNotes());
         dto.setCreatedByRole(order.getCreatedByRole().name());
 
-
         List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
         List<OrderDetailResponseDTO> detailDTOs = details.stream()
                 .map(this::convertToDetailResponseDTO)
@@ -275,14 +285,4 @@ public class OrderServiceImpl implements OrderService {
         dto.setTotalAmount(detail.getTotalAmount());
         return dto;
     }
-
-    @Override
-    public List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole) {
-        return orderRepository.findByCreatedByRole(
-                        Order.CreatedByRole.valueOf(createdByRole.toUpperCase())
-                ).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
 }
