@@ -47,6 +47,7 @@ public class SecurityConfig {
                 "https://fall25-swp-be-production-9b48.up.railway.app",
                 "http://fall25-swp-be-production-9b48.up.railway.app",
                 "https://localhost:3000",
+                "https://electric-vehicle-dealer-management.vercel.app",
                 "https://127.0.0.1:3000"
         ));
 
