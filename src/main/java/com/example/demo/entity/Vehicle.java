@@ -1,12 +1,9 @@
 package com.example.demo.entity;
 
-import com.example.demo.config.JsonConverter;
 import lombok.*;
-
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 @Entity
 @Table(name = "Vehicle")
@@ -33,9 +30,9 @@ public class Vehicle {
     @JoinColumn(name = "vehicle_type_id")
     private VehicleType vehicleType;
 
-    @Convert(converter = JsonConverter.class)
-    @Column(name = "specifications", columnDefinition = "NVARCHAR(MAX)")
-    private Map<String, Object> specifications;
+    // Chuyển từ Map<String, Object> sang String để lưu JSON thô
+    @Column(name = "specifications", columnDefinition = "TEXT")
+    private String specifications;
 
     @Column(name = "status", nullable = false)
     private String status;
@@ -46,17 +43,17 @@ public class Vehicle {
     @Column(name = "listed_price", precision = 18, scale = 2)
     private BigDecimal listedPrice;
 
-    @Column(name = "version", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "version", columnDefinition = "TEXT")
     private String versionJson; // JSON text for versions / trims
 
-    @Column(name = "available_colors", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "available_colors", columnDefinition = "TEXT")
     private String availableColorsJson; // JSON array text
 
-    //Quan hệ ngược với OrderDetail
+    // Quan hệ ngược với OrderDetail
     @OneToMany(mappedBy = "vehicle", fetch = FetchType.LAZY)
     private List<OrderDetail> orderDetails;
 
-    //Quan hệ ngược với QuoteDetail
+    // Quan hệ ngược với QuoteDetail
     @OneToMany(mappedBy = "vehicle", fetch = FetchType.LAZY)
     private List<QuoteDetail> quoteDetails;
 }
