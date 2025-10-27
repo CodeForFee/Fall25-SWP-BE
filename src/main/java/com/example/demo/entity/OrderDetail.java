@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "order_detail")
+@Table(name = "Order_detail")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -40,5 +40,8 @@ public class OrderDetail {
     @JoinColumn(name = "order_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Order order;
 
-
+    // THÊM: Quan hệ với Vehicle
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Vehicle vehicle;
 }

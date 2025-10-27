@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Entity
-@Table(name = "order_table")
+@Table(name = "Order_table")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -79,6 +79,9 @@ public class Order {
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<Contract> contracts;
+
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    private List<Payment> payments;
 
     public enum OrderStatus {
         PENDING, APPROVED, COMPLETED, CANCELLED
