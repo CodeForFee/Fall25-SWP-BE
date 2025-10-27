@@ -19,7 +19,7 @@ import java.util.Objects;
 import java.util.Random;
 
 @RestController
-@RequestMapping("/forgotpassword")
+@RequestMapping("/api/forgotpassword")
 
 public class ForgotPasswordController {
 
