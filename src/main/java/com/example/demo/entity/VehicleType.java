@@ -21,7 +21,7 @@ public class VehicleType {
     @Column(name = "type_name", nullable = false)
     private String typeName;
 
-    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "status", nullable = false)
