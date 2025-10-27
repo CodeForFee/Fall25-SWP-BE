@@ -7,6 +7,7 @@ import com.example.demo.repository.ForgotPasswordRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.EmailService;
 import com.example.demo.util.ChangePassword;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -19,6 +20,7 @@ import java.util.Objects;
 import java.util.Random;
 
 @RestController
+@Tag(name = "ForgotPassword")
 @RequestMapping("/api/forgotpassword")
 
 public class ForgotPasswordController {
