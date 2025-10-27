@@ -61,7 +61,15 @@ public class Order {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    // Relationships - SỬA LẠI CÁC @JoinColumn
+    /**
+     * Vai trò của người tạo order (dựa trên User.role)
+     * Giúp phân biệt đơn hàng do Dealer Staff / Dealer Manager / EVM Staff tạo
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "created_by_role", nullable = false, length = 30)
+    private CreatedByRole createdByRole;
+
+    // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Quote quote;
@@ -83,11 +91,18 @@ public class Order {
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<Payment> payments;
 
+    // Enums
     public enum OrderStatus {
         PENDING, APPROVED, COMPLETED, CANCELLED
     }
 
     public enum PaymentMethod {
         CASH, TRANSFER, INSTALLMENT, CARD
+    }
+
+    public enum CreatedByRole {
+        DEALER_STAFF,
+        DEALER_MANAGER,
+        EVM_STAFF
     }
 }

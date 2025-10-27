@@ -30,7 +30,7 @@ public class Vehicle {
     @JoinColumn(name = "vehicle_type_id")
     private VehicleType vehicleType;
 
-    // Chuyển từ Map<String, Object> sang String để lưu JSON thô
+
     @Column(name = "specifications", columnDefinition = "TEXT")
     private String specifications;
 

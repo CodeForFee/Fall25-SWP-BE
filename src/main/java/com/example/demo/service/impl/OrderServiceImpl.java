@@ -3,12 +3,8 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
-import com.example.demo.entity.Order;
-import com.example.demo.entity.OrderDetail;
-import com.example.demo.entity.QuoteDetail;
-import com.example.demo.repository.OrderDetailRepository;
-import com.example.demo.repository.OrderRepository;
-import com.example.demo.repository.QuoteDetailRepository;
+import com.example.demo.entity.*;
+import com.example.demo.repository.*;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +25,11 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
+    private final UserRepository userRepository; // 🆕 Thêm repository để lấy thông tin Role của User
+
+    // =============================================
+    // Lấy danh sách, tìm kiếm, lọc đơn hàng
+    // =============================================
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -72,6 +73,10 @@ public class OrderServiceImpl implements OrderService {
         return convertToResponseDTO(order);
     }
 
+    // =============================================
+    // Tạo đơn hàng mới
+    // =============================================
+
     @Override
     @Transactional
     public OrderResponseDTO createOrder(OrderDTO orderDTO) {
@@ -79,6 +84,10 @@ public class OrderServiceImpl implements OrderService {
         if (quoteDetails.isEmpty()) {
             throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + orderDTO.getQuoteId());
         }
+
+        // 🔍 Lấy thông tin User để gán Role tạo đơn
+        User user = userRepository.findById(orderDTO.getUserId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với ID: " + orderDTO.getUserId()));
 
         Order order = new Order();
         order.setQuoteId(orderDTO.getQuoteId());
@@ -89,7 +98,10 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
+        order.setCreatedByRole(Order.CreatedByRole.valueOf(user.getRole().name()));
+        ; //
 
+        // ====== Tính toán tổng tiền và chiết khấu ======
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
         List<OrderDetail> orderDetails = new ArrayList<>();
@@ -126,6 +138,7 @@ public class OrderServiceImpl implements OrderService {
         order.setPaidAmount(paidAmount);
         order.setRemainingAmount(remainingAmount);
 
+        // Lưu đơn hàng
         Order savedOrder = orderRepository.save(order);
         for (OrderDetail detail : orderDetails) {
             detail.setOrderId(savedOrder.getId());
@@ -135,11 +148,18 @@ public class OrderServiceImpl implements OrderService {
         return convertToResponseDTO(savedOrder);
     }
 
+    // =============================================
+    // Cập nhật đơn hàng
+    // =============================================
+
     @Override
     @Transactional
     public OrderResponseDTO updateOrder(Integer id, OrderDTO orderDTO) {
         Order existingOrder = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + id));
+
+        User user = userRepository.findById(orderDTO.getUserId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với ID: " + orderDTO.getUserId()));
 
         existingOrder.setQuoteId(orderDTO.getQuoteId());
         existingOrder.setCustomerId(orderDTO.getCustomerId());
@@ -148,7 +168,10 @@ public class OrderServiceImpl implements OrderService {
         existingOrder.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
         existingOrder.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         existingOrder.setNotes(orderDTO.getNotes());
+        existingOrder.setCreatedByRole(Order.CreatedByRole.valueOf(user.getRole().name()));
 
+
+        // ====== Tính toán lại chi tiết đơn hàng ======
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
 
@@ -198,6 +221,10 @@ public class OrderServiceImpl implements OrderService {
         return convertToResponseDTO(updatedOrder);
     }
 
+    // =============================================
+    // Xóa đơn hàng
+    // =============================================
+
     @Override
     @Transactional
     public void deleteOrder(Integer id) {
@@ -206,6 +233,10 @@ public class OrderServiceImpl implements OrderService {
         orderDetailRepository.deleteByOrderId(id);
         orderRepository.delete(order);
     }
+
+    // =============================================
+    // Convert Entity → DTO
+    // =============================================
 
     private OrderResponseDTO convertToResponseDTO(Order order) {
         OrderResponseDTO dto = new OrderResponseDTO();
@@ -222,6 +253,8 @@ public class OrderServiceImpl implements OrderService {
         dto.setStatus(order.getStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod().name());
         dto.setNotes(order.getNotes());
+        dto.setCreatedByRole(order.getCreatedByRole().name());
+
 
         List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
         List<OrderDetailResponseDTO> detailDTOs = details.stream()
@@ -242,4 +275,14 @@ public class OrderServiceImpl implements OrderService {
         dto.setTotalAmount(detail.getTotalAmount());
         return dto;
     }
+
+    @Override
+    public List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole) {
+        return orderRepository.findByCreatedByRole(
+                        Order.CreatedByRole.valueOf(createdByRole.toUpperCase())
+                ).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
 }

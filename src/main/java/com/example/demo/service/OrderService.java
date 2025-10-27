@@ -2,7 +2,6 @@ package com.example.demo.service;
 
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderResponseDTO;
-
 import java.util.List;
 
 public interface OrderService {
@@ -15,4 +14,6 @@ public interface OrderService {
     OrderResponseDTO createOrder(OrderDTO orderDTO);
     OrderResponseDTO updateOrder(Integer id, OrderDTO orderDTO);
     void deleteOrder(Integer id);
+
+    List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole);
 }
