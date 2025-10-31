@@ -13,8 +13,6 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class ContractDTO {
     private Integer orderId;
-    private String vin;
-    private String contractNumber;
     private LocalDate signedDate;
     private String customerSignature;
     private String dealerRepresentative;

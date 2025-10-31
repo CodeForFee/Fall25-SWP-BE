@@ -14,8 +14,6 @@ import java.time.LocalDate;
 public class ContractResponseDTO {
     private Integer id;
     private Integer orderId;
-    private String vin;
-    private String contractNumber;
     private LocalDate signedDate;
     private String customerSignature;
     private String dealerRepresentative;
