@@ -59,8 +59,6 @@ public class User {
     public enum UserStatus {
         ACTIVE,
         INACTIVE,
-        SUSPENDED,
-        PENDING
     }
 
     public enum Role {

@@ -3,13 +3,14 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
-import com.example.demo.entity.Order;
-import com.example.demo.entity.OrderDetail;
-import com.example.demo.entity.QuoteDetail;
+import com.example.demo.dto.QuoteResponseDTO;
+import com.example.demo.entity.*;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.QuoteDetailRepository;
+import com.example.demo.repository.QuoteRepository;
 import com.example.demo.service.OrderService;
+import com.example.demo.service.QuoteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +31,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
+    private final QuoteRepository quoteRepository;
+    private final QuoteService quoteService;
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -73,6 +77,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<QuoteResponseDTO> getApprovedQuotesForOrder() {
+        return quoteService.getApprovedQuotes().stream()
+                .filter(quote -> {
+                    // Kiểm tra xem đã có đơn hàng từ báo giá này chưa
+                    return orderRepository.findByQuoteId(quote.getId()).isEmpty();
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public OrderResponseDTO createOrder(OrderDTO orderDTO) {
         List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(orderDTO.getQuoteId());
@@ -90,6 +104,84 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
 
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+        List<OrderDetail> orderDetails = new ArrayList<>();
+
+        for (QuoteDetail quoteDetail : quoteDetails) {
+            OrderDetail orderDetail = new OrderDetail();
+            orderDetail.setVehicleId(quoteDetail.getVehicleId());
+            orderDetail.setQuantity(quoteDetail.getQuantity());
+            orderDetail.setUnitPrice(quoteDetail.getUnitPrice());
+
+            BigDecimal promotionDiscount = quoteDetail.getPromotionDiscount();
+            BigDecimal grossAmount = quoteDetail.getUnitPrice().multiply(BigDecimal.valueOf(quoteDetail.getQuantity()));
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            BigDecimal netAmount = grossAmount;
+
+            if (promotionDiscount != null && promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal discountPercent = promotionDiscount.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+                netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+            }
+
+            orderDetail.setTotalAmount(netAmount);
+            totalAmount = totalAmount.add(netAmount);
+            totalDiscount = totalDiscount.add(discountAmount);
+            orderDetails.add(orderDetail);
+        }
+
+        order.setTotalAmount(totalAmount);
+        order.setTotalDiscount(totalDiscount);
+
+        BigDecimal paidAmount = orderDTO.getPaidAmount() != null ? orderDTO.getPaidAmount() : BigDecimal.ZERO;
+        BigDecimal remainingAmount = totalAmount.subtract(paidAmount);
+
+        order.setPaidAmount(paidAmount);
+        order.setRemainingAmount(remainingAmount);
+
+        Order savedOrder = orderRepository.save(order);
+        for (OrderDetail detail : orderDetails) {
+            detail.setOrderId(savedOrder.getId());
+        }
+        orderDetailRepository.saveAll(orderDetails);
+
+        return convertToResponseDTO(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponseDTO createOrderFromApprovedQuote(Integer quoteId, OrderDTO orderDTO) {
+        // Kiểm tra báo giá có tồn tại và đã được duyệt không
+        Quote quote = quoteRepository.findById(quoteId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + quoteId));
+
+        if (quote.getStatus() != Quote.QuoteStatus.APPROVED) {
+            throw new RuntimeException("Chỉ có thể tạo đơn hàng từ báo giá đã được duyệt (APPROVED). Trạng thái hiện tại: " + quote.getStatus());
+        }
+
+        // Kiểm tra xem đã có đơn hàng từ báo giá này chưa
+        Optional<Order> existingOrder = orderRepository.findByQuoteId(quoteId);
+        if (existingOrder.isPresent()) {
+            throw new RuntimeException("Đã tồn tại đơn hàng từ báo giá này. Order ID: " + existingOrder.get().getId());
+        }
+
+        List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(quoteId);
+        if (quoteDetails.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + quoteId);
+        }
+
+        Order order = new Order();
+        order.setQuoteId(quoteId);
+        order.setCustomerId(quote.getCustomerId()); // Lấy từ quote
+        order.setDealerId(orderDTO.getDealerId());
+        order.setUserId(orderDTO.getUserId());
+        order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
+        order.setStatus(Order.OrderStatus.COMPLETED);
+        order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
+        order.setNotes(orderDTO.getNotes());
+
+        // Tính toán tổng tiền từ quote details
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
         List<OrderDetail> orderDetails = new ArrayList<>();

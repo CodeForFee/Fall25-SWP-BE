@@ -1,7 +1,6 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Quote;
-import com.example.demo.entity.QuoteDetail;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,11 +16,11 @@ public interface QuoteRepository extends JpaRepository<Quote, Integer> {
 
     List<Quote> findByUserId(Integer userId);
 
-    List<Quote> findByStatus(QuoteDetail.QuoteStatus status);
+    List<Quote> findByStatus(Quote.QuoteStatus status);
 
-    @Query("SELECT q FROM Quote q WHERE q.validUntil < :currentDate AND q.status = 'SENT'")
+    @Query("SELECT q FROM Quote q WHERE q.validUntil < :currentDate AND q.status = 'PENDING'")
     List<Quote> findExpiredQuotes(@Param("currentDate") LocalDate currentDate);
 
-    @Query("SELECT q FROM Quote q WHERE q.customerId = :customerId AND q.status = 'ACCEPTED'")
+    @Query("SELECT q FROM Quote q WHERE q.customerId = :customerId AND q.status = 'APPROVED'")
     List<Quote> findAcceptedQuotesByCustomer(@Param("customerId") Integer customerId);
 }

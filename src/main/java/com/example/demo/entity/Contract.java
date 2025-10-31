@@ -24,12 +24,6 @@ public class Contract {
     @Column(name = "order_id", nullable = false)
     private Integer orderId;
 
-    @Column(name = "vin", nullable = false, length = 50)
-    private String vin;
-
-    @Column(name = "contract_number", nullable = false, unique = true, length = 100)
-    private String contractNumber;
-
     @Column(name = "signed_date")
     private LocalDate signedDate;
 

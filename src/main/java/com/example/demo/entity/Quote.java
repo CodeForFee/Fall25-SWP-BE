@@ -62,6 +62,8 @@ public class Quote {
     private Order order;
 
     public enum QuoteStatus {
-        DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
+        PENDING,
+        APPROVED,
+        REJECTED
     }
 }

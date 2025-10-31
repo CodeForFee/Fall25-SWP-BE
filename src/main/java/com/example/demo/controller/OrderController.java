@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderResponseDTO;
+import com.example.demo.dto.QuoteResponseDTO;
 import com.example.demo.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -58,10 +59,24 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getOrderByQuoteId(quoteId));
     }
 
+    @GetMapping("/approved-quotes")
+    @Operation(summary = "Lấy danh sách báo giá đã duyệt để tạo đơn hàng")
+    public ResponseEntity<List<QuoteResponseDTO>> getApprovedQuotesForOrder() {
+        return ResponseEntity.ok(orderService.getApprovedQuotesForOrder());
+    }
+
     @PostMapping
     @Operation(summary = "Tạo đơn hàng mới")
     public ResponseEntity<OrderResponseDTO> createOrder(@RequestBody OrderDTO orderDTO) {
         return ResponseEntity.ok(orderService.createOrder(orderDTO));
+    }
+
+    @PostMapping("/create-from-quote/{quoteId}")
+    @Operation(summary = "Tạo đơn hàng từ báo giá đã duyệt")
+    public ResponseEntity<OrderResponseDTO> createOrderFromApprovedQuote(
+            @PathVariable Integer quoteId,
+            @RequestBody OrderDTO orderDTO) {
+        return ResponseEntity.ok(orderService.createOrderFromApprovedQuote(quoteId, orderDTO));
     }
 
     @PutMapping("/{id}")
@@ -69,7 +84,6 @@ public class OrderController {
     public ResponseEntity<OrderResponseDTO> updateOrder(@PathVariable Integer id, @RequestBody OrderDTO orderDTO) {
         return ResponseEntity.ok(orderService.updateOrder(id, orderDTO));
     }
-
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa đơn hàng")

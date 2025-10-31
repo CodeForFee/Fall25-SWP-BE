@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,20 +57,35 @@ public class QuoteServiceImpl implements QuoteService {
     }
 
     @Override
+    public List<QuoteResponseDTO> getQuotesByStatus(String status) {
+        Quote.QuoteStatus quoteStatus = Quote.QuoteStatus.valueOf(status.toUpperCase());
+        return quoteRepository.findByStatus(quoteStatus).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<QuoteResponseDTO> getApprovedQuotes() {
+        return quoteRepository.findByStatus(Quote.QuoteStatus.APPROVED).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public QuoteResponseDTO createQuote(QuoteDTO quoteDTO) {
         try {
-            log.info("=== START CREATE QUOTE ===");
+            log.debug("Creating quote for customer: {}", quoteDTO.getCustomerId());
 
             Quote quote = new Quote();
             quote.setCustomerId(quoteDTO.getCustomerId());
             quote.setUserId(quoteDTO.getUserId());
             quote.setCreatedDate(quoteDTO.getCreatedDate() != null ? quoteDTO.getCreatedDate() : LocalDate.now());
-            quote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
+            quote.setStatus(Quote.QuoteStatus.PENDING); // Mặc định là PENDING
             quote.setValidUntil(quoteDTO.getValidUntil());
 
-            // TÍNH TOÁN
             BigDecimal totalAmount = BigDecimal.ZERO;
+            BigDecimal totalDiscount = BigDecimal.ZERO;
 
             if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
                 List<QuoteDetail> quoteDetails = new ArrayList<>();
@@ -82,37 +98,43 @@ public class QuoteServiceImpl implements QuoteService {
                     detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
                             detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
-                    // TÍNH TOÁN
-                    BigDecimal itemTotal = detailDTO.getUnitPrice()
-                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()))
-                            .subtract(detail.getPromotionDiscount());
+                    BigDecimal grossAmount = detailDTO.getUnitPrice()
+                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+                    BigDecimal discountAmount = BigDecimal.ZERO;
+                    BigDecimal netAmount = grossAmount;
 
-                    detail.setTotalAmount(itemTotal);
-                    totalAmount = totalAmount.add(itemTotal);
+                    if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal discountPercent = detail.getPromotionDiscount()
+                                .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                        discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+                        netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+                    }
 
+                    detail.setTotalAmount(netAmount);
+                    totalAmount = totalAmount.add(netAmount);
+                    totalDiscount = totalDiscount.add(discountAmount);
                     quoteDetails.add(detail);
                 }
 
                 quote.setTotalAmount(totalAmount);
                 Quote savedQuote = quoteRepository.save(quote);
 
-                // Set quoteId cho các detail và save
                 for (QuoteDetail detail : quoteDetails) {
                     detail.setQuoteId(savedQuote.getId());
                 }
                 quoteDetailRepository.saveAll(quoteDetails);
 
-                log.info("=== QUOTE CREATED SUCCESSFULLY - Total Amount: {} ===", totalAmount);
+                log.info("Quote created successfully - Status: PENDING - Total Amount: {}, Total Discount: {}", totalAmount, totalDiscount);
                 return convertToResponseDTO(savedQuote);
             } else {
                 quote.setTotalAmount(BigDecimal.ZERO);
                 Quote savedQuote = quoteRepository.save(quote);
-                log.info("=== QUOTE CREATED SUCCESSFULLY - No details ===");
+                log.info("Quote created successfully - Status: PENDING - No details");
                 return convertToResponseDTO(savedQuote);
             }
 
         } catch (Exception e) {
-            log.error("!!! ERROR IN CREATE QUOTE !!!", e);
+            log.error("Error creating quote: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi server khi tạo báo giá: " + e.getMessage());
         }
     }
@@ -148,13 +170,20 @@ public class QuoteServiceImpl implements QuoteService {
                         detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
                 // TÍNH TOÁN
-                BigDecimal itemTotal = detailDTO.getUnitPrice()
-                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()))
-                        .subtract(detail.getPromotionDiscount());
+                BigDecimal grossAmount = detailDTO.getUnitPrice()
+                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+                BigDecimal discountAmount = BigDecimal.ZERO;
+                BigDecimal netAmount = grossAmount;
 
-                detail.setTotalAmount(itemTotal);
-                totalAmount = totalAmount.add(itemTotal);
+                if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal discountPercent = detail.getPromotionDiscount()
+                            .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                    discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+                    netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+                }
 
+                detail.setTotalAmount(netAmount);
+                totalAmount = totalAmount.add(netAmount);
                 quoteDetails.add(detail);
             }
 
@@ -165,10 +194,41 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         Quote updatedQuote = quoteRepository.save(existingQuote);
-        log.info("=== QUOTE UPDATED SUCCESSFULLY - Total Amount: {} ===", totalAmount);
+        log.debug("Quote updated successfully - Total Amount: {}", totalAmount);
         return convertToResponseDTO(updatedQuote);
     }
 
+    @Override
+    @Transactional
+    public QuoteResponseDTO approveQuote(Integer id) {
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
+
+        if (quote.getStatus() != Quote.QuoteStatus.PENDING) {
+            throw new RuntimeException("Chỉ có thể duyệt báo giá đang ở trạng thái PENDING");
+        }
+
+        quote.setStatus(Quote.QuoteStatus.APPROVED);
+        Quote updatedQuote = quoteRepository.save(quote);
+        log.info("Quote {} approved successfully", id);
+        return convertToResponseDTO(updatedQuote);
+    }
+
+    @Override
+    @Transactional
+    public QuoteResponseDTO rejectQuote(Integer id) {
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
+
+        if (quote.getStatus() != Quote.QuoteStatus.PENDING) {
+            throw new RuntimeException("Chỉ có thể từ chối báo giá đang ở trạng thái PENDING");
+        }
+
+        quote.setStatus(Quote.QuoteStatus.REJECTED);
+        Quote updatedQuote = quoteRepository.save(quote);
+        log.info("Quote {} rejected successfully", id);
+        return convertToResponseDTO(updatedQuote);
+    }
 
     @Override
     @Transactional
@@ -181,7 +241,7 @@ public class QuoteServiceImpl implements QuoteService {
 
         // Delete quote
         quoteRepository.delete(quote);
-        log.info("=== QUOTE DELETED SUCCESSFULLY ===");
+        log.debug("Quote deleted successfully");
     }
 
     @Override
@@ -190,11 +250,11 @@ public class QuoteServiceImpl implements QuoteService {
         List<Quote> expiredQuotes = quoteRepository.findExpiredQuotes(today);
 
         for (Quote quote : expiredQuotes) {
-            quote.setStatus(Quote.QuoteStatus.EXPIRED);
+            quote.setStatus(Quote.QuoteStatus.REJECTED);
         }
 
         quoteRepository.saveAll(expiredQuotes);
-        log.info("=== EXPIRED {} OLD QUOTES ===", expiredQuotes.size());
+        log.info("Expired {} old quotes", expiredQuotes.size());
     }
 
     private QuoteResponseDTO convertToResponseDTO(Quote quote) {
@@ -225,7 +285,7 @@ public class QuoteServiceImpl implements QuoteService {
         dto.setQuantity(detail.getQuantity());
         dto.setUnitPrice(detail.getUnitPrice());
         dto.setPromotionDiscount(detail.getPromotionDiscount());
-        dto.setTotalAmount(detail.getTotalAmount()); // Đã được tính tự động
+        dto.setTotalAmount(detail.getTotalAmount());
         return dto;
     }
 }

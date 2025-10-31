@@ -46,6 +46,18 @@ public class QuoteController {
         return ResponseEntity.ok(quoteService.getQuotesByUserId(userId));
     }
 
+    @GetMapping("/status/{status}")
+    @Operation(summary = "Lấy báo giá theo trạng thái")
+    public ResponseEntity<List<QuoteResponseDTO>> getQuotesByStatus(@PathVariable String status) {
+        return ResponseEntity.ok(quoteService.getQuotesByStatus(status));
+    }
+
+    @GetMapping("/approved")
+    @Operation(summary = "Lấy danh sách báo giá đã được duyệt")
+    public ResponseEntity<List<QuoteResponseDTO>> getApprovedQuotes() {
+        return ResponseEntity.ok(quoteService.getApprovedQuotes());
+    }
+
     @PostMapping
     @Operation(summary = "Tạo báo giá mới")
     public ResponseEntity<QuoteResponseDTO> createQuote(@RequestBody QuoteDTO quoteDTO) {
@@ -58,6 +70,17 @@ public class QuoteController {
         return ResponseEntity.ok(quoteService.updateQuote(id, quoteDTO));
     }
 
+    @PutMapping("/{id}/approve")
+    @Operation(summary = "Phê duyệt báo giá")
+    public ResponseEntity<QuoteResponseDTO> approveQuote(@PathVariable Integer id) {
+        return ResponseEntity.ok(quoteService.approveQuote(id));
+    }
+
+    @PutMapping("/{id}/reject")
+    @Operation(summary = "Từ chối báo giá")
+    public ResponseEntity<QuoteResponseDTO> rejectQuote(@PathVariable Integer id) {
+        return ResponseEntity.ok(quoteService.rejectQuote(id));
+    }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa báo giá")
