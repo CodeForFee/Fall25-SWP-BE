@@ -86,9 +86,10 @@ public class OrderServiceImpl implements OrderService {
         order.setDealerId(orderDTO.getDealerId());
         order.setUserId(orderDTO.getUserId());
         order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
-        order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
+        order.setStatus(Order.OrderStatus.PENDING);
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
+        order.setApprovalStatus(Order.OrderApprovalStatus.PENDING_APPROVAL);
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
@@ -222,6 +223,19 @@ public class OrderServiceImpl implements OrderService {
         dto.setStatus(order.getStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod().name());
         dto.setNotes(order.getNotes());
+
+        if (order.getApprovalStatus() != null) {
+            dto.setApprovalStatus(order.getApprovalStatus().name());
+        }
+        if (order.getApprovedBy() != null) {
+            dto.setApprovedBy(order.getApprovedBy());
+        }
+        if (order.getApprovedAt() != null) {
+            dto.setApprovedAt(order.getApprovedAt());
+        }
+        if (order.getApprovalNotes() != null) {
+            dto.setApprovalNotes(order.getApprovalNotes());
+        }
 
         List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
         List<OrderDetailResponseDTO> detailDTOs = details.stream()

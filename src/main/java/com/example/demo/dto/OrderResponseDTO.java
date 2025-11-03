@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -28,6 +29,10 @@ public class OrderResponseDTO {
     private String notes;
     private List<OrderDetailResponseDTO> orderDetails;
     private BigDecimal totalDiscount;
-
-
+    private String approvalStatus;
+    private Integer approvedBy;
+    private LocalDateTime approvedAt;
+    private String approvalNotes;
+    private String quoteStatus;
+    private String quoteApprovalStatus;
 }

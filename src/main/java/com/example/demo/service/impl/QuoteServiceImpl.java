@@ -67,6 +67,8 @@ public class QuoteServiceImpl implements QuoteService {
             quote.setUserId(quoteDTO.getUserId());
             quote.setCreatedDate(quoteDTO.getCreatedDate() != null ? quoteDTO.getCreatedDate() : LocalDate.now());
             quote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
+            quote.setApprovalStatus(Quote.QuoteApprovalStatus.DRAFT);
+
             quote.setValidUntil(quoteDTO.getValidUntil());
 
             BigDecimal totalAmount = BigDecimal.ZERO;
@@ -83,7 +85,7 @@ public class QuoteServiceImpl implements QuoteService {
                     detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
                             detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
-                   
+
                     BigDecimal grossAmount = detailDTO.getUnitPrice()
                             .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
                     BigDecimal discountAmount = BigDecimal.ZERO;
@@ -156,12 +158,20 @@ public class QuoteServiceImpl implements QuoteService {
                         detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
 
                 // TÍNH TOÁN
-                BigDecimal itemTotal = detailDTO.getUnitPrice()
-                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()))
-                        .subtract(detail.getPromotionDiscount());
+                BigDecimal grossAmount = detailDTO.getUnitPrice()
+                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+                BigDecimal discountAmount = BigDecimal.ZERO;
+                BigDecimal netAmount = grossAmount;
 
-                detail.setTotalAmount(itemTotal);
-                totalAmount = totalAmount.add(itemTotal);
+                if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal discountPercent = detail.getPromotionDiscount()
+                            .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                    discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+                    netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+                }
+
+                detail.setTotalAmount(netAmount);
+                totalAmount = totalAmount.add(netAmount);
 
                 quoteDetails.add(detail);
             }
@@ -176,7 +186,6 @@ public class QuoteServiceImpl implements QuoteService {
         log.debug("Quote updated successfully - Total Amount: {}", totalAmount);
         return convertToResponseDTO(updatedQuote);
     }
-
 
     @Override
     @Transactional
@@ -213,7 +222,17 @@ public class QuoteServiceImpl implements QuoteService {
         dto.setCreatedDate(quote.getCreatedDate());
         dto.setTotalAmount(quote.getTotalAmount());
         dto.setStatus(quote.getStatus().name());
+        dto.setApprovalStatus(quote.getApprovalStatus().name()); // 🔥 THÊM APPROVAL STATUS
         dto.setValidUntil(quote.getValidUntil());
+        if (quote.getApprovedBy() != null) {
+            dto.setApprovedBy(quote.getApprovedBy());
+        }
+        if (quote.getApprovedAt() != null) {
+            dto.setApprovedAt(quote.getApprovedAt());
+        }
+        if (quote.getApprovalNotes() != null) {
+            dto.setApprovalNotes(quote.getApprovalNotes());
+        }
 
         // Load quote details
         List<QuoteDetail> details = quoteDetailRepository.findByQuoteId(quote.getId());
@@ -233,7 +252,7 @@ public class QuoteServiceImpl implements QuoteService {
         dto.setQuantity(detail.getQuantity());
         dto.setUnitPrice(detail.getUnitPrice());
         dto.setPromotionDiscount(detail.getPromotionDiscount());
-        dto.setTotalAmount(detail.getTotalAmount()); // Đã được tính tự động
+        dto.setTotalAmount(detail.getTotalAmount());
         return dto;
     }
 }
