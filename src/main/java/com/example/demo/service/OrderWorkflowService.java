@@ -30,35 +30,44 @@ public class OrderWorkflowService {
     private final InventoryService inventoryService;
     private final AuditLogService auditLogService;
 
-    @Transactional
+    // Loại bỏ @Transactional để tránh nested transaction
     public OrderResponseDTO createOrderFromApprovedQuote(OrderDTO orderDTO) {
-        Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
-                .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
+        log.info("=== START createOrderFromApprovedQuote - quoteId: {}", orderDTO.getQuoteId());
 
-        if (!quote.canCreateOrder()) {
-            throw new RuntimeException("Cannot create order from quote. Approval status: " +
-                    quote.getApprovalStatus() + ", Quote status: " + quote.getStatus());
+        try {
+            Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
+                    .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
+
+            if (!quote.canCreateOrder()) {
+                throw new RuntimeException("Cannot create order from quote. Approval status: " +
+                        quote.getApprovalStatus() + ", Quote status: " + quote.getStatus());
+            }
+
+            orderDTO.setStatus("PENDING");
+            OrderResponseDTO order = orderService.createOrder(orderDTO);
+
+            Order orderEntity = orderRepository.findById(order.getId())
+                    .orElseThrow(() -> new RuntimeException("Order not found after creation: " + order.getId()));
+
+            orderEntity.setApprovalStatus(Order.OrderApprovalStatus.PENDING_APPROVAL);
+            orderRepository.save(orderEntity);
+
+            auditLogService.log("ORDER_CREATED_FROM_APPROVED_QUOTE", "ORDER", order.getId().toString(),
+                    Map.of("quoteId", quote.getId(), "dealerId", orderDTO.getDealerId(),
+                            "approvalStatus", "PENDING_APPROVAL"));
+
+            log.info("Order created from approved quote - Order: {}, Quote: {}, Status: PENDING_APPROVAL",
+                    order.getId(), quote.getId());
+
+            return order;
+
+        } catch (Exception e) {
+            log.error("Error creating order from approved quote: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create order from quote: " + e.getMessage(), e);
         }
-
-        orderDTO.setStatus("PENDING");
-        OrderResponseDTO order = orderService.createOrder(orderDTO);
-
-        Order orderEntity = orderRepository.findById(order.getId())
-                .orElseThrow(() -> new RuntimeException("Order not found after creation: " + order.getId()));
-
-        orderEntity.setApprovalStatus(Order.OrderApprovalStatus.PENDING_APPROVAL);
-        orderRepository.save(orderEntity);
-
-        auditLogService.log("ORDER_CREATED_FROM_APPROVED_QUOTE", "ORDER", order.getId().toString(),
-                Map.of("quoteId", quote.getId(), "dealerId", orderDTO.getDealerId(),
-                        "approvalStatus", "PENDING_APPROVAL"));
-
-        log.info("Order created from approved quote - Order: {}, Quote: {}, Status: PENDING_APPROVAL",
-                order.getId(), quote.getId());
-
-        return order;
     }
 
+    // Loại bỏ @Transactional và sử dụng REQUIRES_NEW cho các method con
     public void approveOrder(Integer orderId, Integer approvedBy, String notes) {
         log.info("=== START approveOrder - orderId: {}", orderId);
 
@@ -78,7 +87,7 @@ public class OrderWorkflowService {
         }
     }
 
-
+    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void handleInsufficientInventory(Integer orderId) {
         try {
@@ -99,7 +108,7 @@ public class OrderWorkflowService {
         }
     }
 
-
+    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void performOrderApproval(Integer orderId, Integer approvedBy, String notes) {
         log.info("Starting order approval transaction - orderId: {}", orderId);
@@ -134,6 +143,7 @@ public class OrderWorkflowService {
         }
     }
 
+    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void rejectOrder(Integer orderId, Integer rejectedBy, String reason) {
         log.info("Rejecting order {} by user {}", orderId, rejectedBy);
@@ -186,7 +196,6 @@ public class OrderWorkflowService {
         return orderRepository.findOrdersPendingApproval();
     }
 
-
     public boolean canApproveOrder(Integer orderId) {
         try {
             Order order = orderRepository.findById(orderId)
@@ -219,7 +228,6 @@ public class OrderWorkflowService {
                 .map(Quote::canCreateOrder)
                 .orElse(false);
     }
-
 
     public void checkTransactionStatus(Integer orderId) {
         log.info("Checking transaction status for order: {}", orderId);

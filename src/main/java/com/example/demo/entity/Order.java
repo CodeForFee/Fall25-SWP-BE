@@ -63,7 +63,6 @@ public class Order {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    // 👈 THÊM TRẠNG THÁI DUYỆT ORDER
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status")
     private OrderApprovalStatus approvalStatus;
@@ -77,7 +76,21 @@ public class Order {
     @Column(name = "approval_notes", columnDefinition = "TEXT")
     private String approvalNotes;
 
-    // Relationships - THÊM @JsonIgnore ĐỂ TRÁNH VÒNG LẶP JSON
+    // 🔥 THÊM PAYMENT STATUS
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status")
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "last_payment_date")
+    private LocalDateTime lastPaymentDate;
+
+    @Column(name = "is_payment_processed")
+    private Boolean isPaymentProcessed = false;
+
+    @Column(name = "vnpay_transaction_ref")
+    private String vnpayTransactionRef;
+
+    // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
     @JsonIgnore
@@ -110,15 +123,16 @@ public class Order {
     }
 
     public enum PaymentMethod {
-        CASH, TRANSFER, INSTALLMENT, CARD
+        CASH, TRANSFER, INSTALLMENT, CARD, VNPAY
     }
 
-    // 👈 ENUM MỚI CHO DUYỆT ORDER
     public enum OrderApprovalStatus {
-        PENDING_APPROVAL,        // Chờ duyệt order
-        APPROVED,               // Order đã duyệt
-        REJECTED,               // Order bị từ chối
-        INSUFFICIENT_INVENTORY  // Kho không đủ
+        PENDING_APPROVAL, APPROVED, REJECTED, INSUFFICIENT_INVENTORY
+    }
+
+    // 🔥 THÊM PAYMENT STATUS ENUM
+    public enum PaymentStatus {
+        UNPAID, PARTIALLY_PAID, PAID, FAILED, REFUNDED
     }
 
     // Helper methods
@@ -136,25 +150,38 @@ public class Order {
         return this.approvalStatus == OrderApprovalStatus.INSUFFICIENT_INVENTORY;
     }
 
-    // Business logic methods
-    public boolean canBeProcessed() {
-        return this.isApproved() && this.remainingAmount.compareTo(BigDecimal.ZERO) > 0;
+    // 🔥 THÊM METHOD KIỂM TRA CÓ THỂ THANH TOÁN
+    public boolean canProcessPayment() {
+        return this.isApproved() &&
+                this.paymentStatus != PaymentStatus.PAID &&
+                this.remainingAmount.compareTo(BigDecimal.ZERO) > 0;
     }
 
     public boolean isFullyPaid() {
-        return this.remainingAmount.compareTo(BigDecimal.ZERO) <= 0;
+        return this.paymentStatus == PaymentStatus.PAID;
     }
 
-    public void markAsCompleted() {
-        if (this.isFullyPaid()) {
-            this.status = OrderStatus.COMPLETED;
-        }
+    // 🔥 METHOD CẬP NHẬT SAU KHI THANH TOÁN THÀNH CÔNG
+    public void markAsPaid() {
+        this.paymentStatus = PaymentStatus.PAID;
+        this.paidAmount = this.totalAmount;
+        this.remainingAmount = BigDecimal.ZERO;
+        this.isPaymentProcessed = true;
+        this.lastPaymentDate = LocalDateTime.now();
+        this.status = OrderStatus.COMPLETED;
     }
 
     public void addPayment(BigDecimal amount) {
         this.paidAmount = this.paidAmount.add(amount);
         this.remainingAmount = this.totalAmount.subtract(this.paidAmount);
-        this.markAsCompleted();
+
+        if (this.remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            this.paymentStatus = PaymentStatus.PAID;
+        } else {
+            this.paymentStatus = PaymentStatus.PARTIALLY_PAID;
+        }
+
+        this.lastPaymentDate = LocalDateTime.now();
     }
 
     // Static factory methods
@@ -166,30 +193,17 @@ public class Order {
         order.setUserId(userId);
         order.setOrderDate(LocalDate.now());
         order.setTotalAmount(quote.getTotalAmount());
-        order.setTotalDiscount(BigDecimal.ZERO); // Will be calculated from quote details
+        order.setTotalDiscount(BigDecimal.ZERO);
         order.setPaidAmount(BigDecimal.ZERO);
         order.setRemainingAmount(quote.getTotalAmount());
         order.setStatus(OrderStatus.PENDING);
         order.setPaymentMethod(paymentMethod);
         order.setApprovalStatus(OrderApprovalStatus.PENDING_APPROVAL);
+        order.setPaymentStatus(PaymentStatus.UNPAID);
         order.setNotes("Created from quote #" + quote.getId());
         return order;
     }
 
-    // Validation methods
-    public boolean isValidForApproval() {
-        return this.canBeApproved() &&
-                this.totalAmount != null &&
-                this.totalAmount.compareTo(BigDecimal.ZERO) > 0;
-    }
-
-    public boolean hasValidPaymentInfo() {
-        return this.paymentMethod != null &&
-                this.paidAmount != null &&
-                this.paidAmount.compareTo(BigDecimal.ZERO) >= 0;
-    }
-
-    // toString for debugging
     @Override
     public String toString() {
         return "Order{" +
@@ -198,10 +212,10 @@ public class Order {
                 ", customerId=" + customerId +
                 ", dealerId=" + dealerId +
                 ", userId=" + userId +
-                ", orderDate=" + orderDate +
                 ", totalAmount=" + totalAmount +
                 ", status=" + status +
                 ", approvalStatus=" + approvalStatus +
+                ", paymentStatus=" + paymentStatus +
                 '}';
     }
 }
