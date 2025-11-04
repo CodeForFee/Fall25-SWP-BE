@@ -24,12 +24,25 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     Optional<Order> findByQuoteId(Integer quoteId);
 
+    // 👈 THÊM CÁC METHOD MỚI
+    List<Order> findByApprovalStatus(Order.OrderApprovalStatus approvalStatus);
+
+    List<Order> findByStatusAndApprovalStatus(Order.OrderStatus status, Order.OrderApprovalStatus approvalStatus);
+
     @Query("SELECT o FROM Order o WHERE o.orderDate BETWEEN :startDate AND :endDate")
     List<Order> findOrdersByDateRange(@Param("startDate") LocalDate startDate,
                                       @Param("endDate") LocalDate endDate);
 
     @Query("SELECT o FROM Order o WHERE o.remainingAmount > 0")
     List<Order> findOrdersWithPendingPayments();
+
+    // 🔥 THÊM METHOD NÀY: Orders chờ duyệt
+    @Query("SELECT o FROM Order o WHERE o.approvalStatus = 'PENDING_APPROVAL'")
+    List<Order> findOrdersPendingApproval();
+
+    // 🔥 THÊM METHOD NÀY: Orders có vấn đề về kho
+    @Query("SELECT o FROM Order o WHERE o.approvalStatus = 'INSUFFICIENT_INVENTORY'")
+    List<Order> findOrdersWithInventoryIssues();
 
     // Số lượng đơn theo trạng thái toàn hệ thống
     @Query("SELECT o.status, COUNT(o) FROM Order o GROUP BY o.status")
@@ -45,8 +58,9 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     List<Order> findByDealer_DealerIdAndOrderDateBetween(Integer dealerId, LocalDate start, LocalDate end);
 
-    List<Order> findByDealerIdAndOrderDateBetween(Long dealerId, LocalDate from, LocalDate to);
-
-    //lấy đơn hàng theo role người tạo (hãng hoặc đại lý)
-    List<Order> findByCreatedByRole(Order.CreatedByRole createdByRole);
+    // Lấy orders cho dealer trong thời gian
+    @Query("SELECT o FROM Order o WHERE o.dealerId = :dealerId AND o.orderDate BETWEEN :from AND :to")
+    List<Order> findByDealerIdAndOrderDateBetween(@Param("dealerId") Integer dealerId,
+                                                  @Param("from") LocalDate from,
+                                                  @Param("to") LocalDate to);
 }

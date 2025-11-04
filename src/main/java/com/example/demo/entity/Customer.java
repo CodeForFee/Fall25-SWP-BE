@@ -1,6 +1,7 @@
 // Customer.java
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,6 +41,7 @@ public class Customer {
     // Liên kết Many-to-One với Dealer
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dealer_id", referencedColumnName = "dealerId", insertable = false, updatable = false)
+    @JsonIgnore
     private Dealer dealer;
 
     // Liên kết One-to-Many với Quote

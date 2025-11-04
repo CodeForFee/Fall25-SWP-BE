@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -61,13 +62,32 @@ public class Order {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    /**
-     * Vai trò của người tạo order (dựa trên User.role)
-     * Giúp phân biệt đơn hàng do Dealer Staff / Dealer Manager / EVM Staff tạo
-     */
     @Enumerated(EnumType.STRING)
-    @Column(name = "created_by_role", nullable = false, length = 30)
-    private CreatedByRole createdByRole;
+    @Column(name = "approval_status")
+    private OrderApprovalStatus approvalStatus;
+
+    @Column(name = "approved_by")
+    private Integer approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "approval_notes", columnDefinition = "TEXT")
+    private String approvalNotes;
+
+    // 🔥 THÊM PAYMENT STATUS
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status")
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "last_payment_date")
+    private LocalDateTime lastPaymentDate;
+
+    @Column(name = "is_payment_processed")
+    private Boolean isPaymentProcessed = false;
+
+    @Column(name = "vnpay_transaction_ref")
+    private String vnpayTransactionRef;
 
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
@@ -91,18 +111,104 @@ public class Order {
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<Payment> payments;
 
-    // Enums
     public enum OrderStatus {
         PENDING, APPROVED, COMPLETED, CANCELLED
     }
 
     public enum PaymentMethod {
-        CASH, TRANSFER, INSTALLMENT, CARD
+        CASH, TRANSFER, INSTALLMENT, CARD, VNPAY
     }
 
-    public enum CreatedByRole {
-        DEALER_STAFF,
-        DEALER_MANAGER,
-        EVM_STAFF
+    public enum OrderApprovalStatus {
+        PENDING_APPROVAL, APPROVED, REJECTED, INSUFFICIENT_INVENTORY
+    }
+
+    // 🔥 THÊM PAYMENT STATUS ENUM
+    public enum PaymentStatus {
+        UNPAID, PARTIALLY_PAID, PAID, FAILED, REFUNDED
+    }
+
+    // Helper methods
+    public boolean canBeApproved() {
+        return this.approvalStatus == OrderApprovalStatus.PENDING_APPROVAL &&
+                this.status == OrderStatus.PENDING;
+    }
+
+    public boolean isApproved() {
+        return this.approvalStatus == OrderApprovalStatus.APPROVED &&
+                this.status == OrderStatus.APPROVED;
+    }
+
+    public boolean hasInventoryIssues() {
+        return this.approvalStatus == OrderApprovalStatus.INSUFFICIENT_INVENTORY;
+    }
+
+    // 🔥 THÊM METHOD KIỂM TRA CÓ THỂ THANH TOÁN
+    public boolean canProcessPayment() {
+        return this.isApproved() &&
+                this.paymentStatus != PaymentStatus.PAID &&
+                this.remainingAmount.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    public boolean isFullyPaid() {
+        return this.paymentStatus == PaymentStatus.PAID;
+    }
+
+    // 🔥 METHOD CẬP NHẬT SAU KHI THANH TOÁN THÀNH CÔNG
+    public void markAsPaid() {
+        this.paymentStatus = PaymentStatus.PAID;
+        this.paidAmount = this.totalAmount;
+        this.remainingAmount = BigDecimal.ZERO;
+        this.isPaymentProcessed = true;
+        this.lastPaymentDate = LocalDateTime.now();
+        this.status = OrderStatus.COMPLETED;
+    }
+
+    public void addPayment(BigDecimal amount) {
+        this.paidAmount = this.paidAmount.add(amount);
+        this.remainingAmount = this.totalAmount.subtract(this.paidAmount);
+
+        if (this.remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            this.paymentStatus = PaymentStatus.PAID;
+        } else {
+            this.paymentStatus = PaymentStatus.PARTIALLY_PAID;
+        }
+
+        this.lastPaymentDate = LocalDateTime.now();
+    }
+
+    // Static factory methods
+    public static Order createFromQuote(Quote quote, Integer dealerId, Integer userId, PaymentMethod paymentMethod) {
+        Order order = new Order();
+        order.setQuoteId(quote.getId());
+        order.setCustomerId(quote.getCustomerId());
+        order.setDealerId(dealerId);
+        order.setUserId(userId);
+        order.setOrderDate(LocalDate.now());
+        order.setTotalAmount(quote.getTotalAmount());
+        order.setTotalDiscount(BigDecimal.ZERO);
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setRemainingAmount(quote.getTotalAmount());
+        order.setStatus(OrderStatus.PENDING);
+        order.setPaymentMethod(paymentMethod);
+        order.setApprovalStatus(OrderApprovalStatus.PENDING_APPROVAL);
+        order.setPaymentStatus(PaymentStatus.UNPAID);
+        order.setNotes("Created from quote #" + quote.getId());
+        return order;
+    }
+
+    @Override
+    public String toString() {
+        return "Order{" +
+                "id=" + id +
+                ", quoteId=" + quoteId +
+                ", customerId=" + customerId +
+                ", dealerId=" + dealerId +
+                ", userId=" + userId +
+                ", totalAmount=" + totalAmount +
+                ", status=" + status +
+                ", approvalStatus=" + approvalStatus +
+                ", paymentStatus=" + paymentStatus +
+                '}';
     }
 }
