@@ -7,12 +7,8 @@ import com.example.demo.entity.Payment;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.service.PaymentProcessingService;
 import com.example.demo.service.VNPayService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +22,6 @@ import java.util.Map;
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 @CrossOrigin
-@SecurityRequirement(name = "bearer-jwt")
 @Tag(name = "Payment API", description = "APIs for payment processing with VNPay")
 public class PaymentController {
 
@@ -34,18 +29,8 @@ public class PaymentController {
     private final PaymentProcessingService paymentProcessingService;
     private final OrderRepository orderRepository;
 
-    @Operation(
-            summary = "Tao thanh toan VNPay",
-            description = "Tao URL thanh toan VNPay cho order da duoc duyet"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Tao thanh toan thanh cong"),
-            @ApiResponse(responseCode = "400", description = "Order khong the thanh toan hoac co loi"),
-            @ApiResponse(responseCode = "404", description = "Order khong ton tai")
-    })
     @PostMapping("/vnpay/create")
     public ResponseEntity<?> createVNPayPayment(
-            @Parameter(description = "Thong tin thanh toan VNPay", required = true)
             @RequestBody VNPayPaymentRequestDTO paymentRequest,
             HttpServletRequest request) {
 
@@ -53,180 +38,103 @@ public class PaymentController {
             log.info("Creating VNPay payment for order: {}", paymentRequest.getOrderId());
 
             Order order = orderRepository.findById(paymentRequest.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Khong tim thay order voi ID: " + paymentRequest.getOrderId()));
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy order với ID: " + paymentRequest.getOrderId()));
 
             if (!order.canProcessPayment()) {
-                Map<String, Object> errorResponse = Map.of(
-                        "error", "Order khong the xu ly thanh toan",
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Order không thể thanh toán",
                         "orderId", order.getId(),
-                        "status", order.getStatus(),
-                        "approvalStatus", order.getApprovalStatus(),
-                        "paymentStatus", order.getPaymentStatus(),
-                        "remainingAmount", order.getRemainingAmount()
-                );
-                log.warn("Order cannot process payment: {}", errorResponse);
-                return ResponseEntity.badRequest().body(errorResponse);
+                        "status", order.getStatus()
+                ));
             }
 
             VNPayPaymentResponseDTO response = vnPayService.createPayment(paymentRequest, request);
-
-            if ("00".equals(response.getCode())) {
-                log.info("VNPay payment created successfully for order: {}", order.getId());
-                return ResponseEntity.ok(response);
-            } else {
-                log.error("Failed to create VNPay payment: {}", response.getMessage());
-                return ResponseEntity.badRequest().body(response);
-            }
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Error creating VNPay payment for order {}: {}", paymentRequest.getOrderId(), e.getMessage());
+            log.error("Error creating VNPay payment: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Loi khi tao thanh toan: " + e.getMessage()
+                    "error", "Lỗi khi tạo thanh toán: " + e.getMessage()
             ));
         }
     }
 
-    @Operation(
-            summary = "Xu ly ket qua thanh toan tu VNPay",
-            description = "API nay duoc VNPay goi lai sau khi nguoi dung hoan tat thanh toan"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Xu ly ket qua thanh cong"),
-            @ApiResponse(responseCode = "400", description = "Loi xu ly ket qua thanh toan")
-    })
+    @SecurityRequirement(name = "")
     @GetMapping("/vnpay/return")
-    public ResponseEntity<?> handleVNPayReturn(
-            @Parameter(description = "Cac tham so tu VNPay tra ve", required = true)
-            @RequestParam Map<String, String> params) {
+    public ResponseEntity<?> handleVNPayReturn(HttpServletRequest request) {
 
         try {
-            log.info("Processing VNPay return with params: {}", params);
+            log.info("HANDLING VNPay RETURN CALLBACK");
 
-            Payment payment = paymentProcessingService.processVNPayReturn(params);
+            Map<String, String> fields = new java.util.HashMap<>();
+            request.getParameterNames().asIterator()
+                    .forEachRemaining(param -> {
+                        String value = request.getParameter(param);
+                        fields.put(param, value);
+                        log.info("VNPay Param - {}: {}", param, value);
+                    });
 
-            if (payment.isSuccessful()) {
-                Map<String, Object> successResponse = Map.of(
+            log.info("VNPay RETURN PARAMS: {}", fields);
+
+            boolean isValid = vnPayService.validateResponse(fields);
+
+            if (!isValid) {
+                log.error("INVALID SIGNATURE FROM VNPay");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Invalid signature - Payment verification failed"
+                ));
+            }
+
+            log.info("VALID SIGNATURE - Processing payment...");
+
+            String responseCode = fields.get("vnp_ResponseCode");
+
+            Payment payment = paymentProcessingService.processVNPayReturn(fields);
+
+            if ("00".equals(responseCode)) {
+                log.info("PAYMENT SUCCESS - Order: {}, Amount: {}",
+                        payment.getOrderId(), payment.getAmount());
+                return ResponseEntity.ok(Map.of(
                         "success", true,
-                        "message", "Thanh toan thanh cong",
+                        "message", "Thanh toán thành công",
                         "paymentId", payment.getId(),
                         "orderId", payment.getOrderId(),
                         "amount", payment.getAmount(),
-                        "transactionCode", payment.getTransactionCode(),
-                        "vnpayTransactionNo", payment.getVnpayTransactionNo()
-                );
-                log.info("Payment processed successfully: {}", successResponse);
-                return ResponseEntity.ok(successResponse);
+                        "transactionNo", payment.getVnpayTransactionNo()
+                ));
             } else {
-                Map<String, Object> failedResponse = Map.of(
+                log.warn("PAYMENT FAILED - Code: {}, Order: {}",
+                        responseCode, payment.getOrderId());
+                return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
-                        "message", "Thanh toan that bai",
-                        "paymentId", payment.getId(),
-                        "orderId", payment.getOrderId(),
-                        "errorCode", payment.getVnpayResponseCode()
-                );
-                log.warn("Payment failed: {}", failedResponse);
-                return ResponseEntity.ok(failedResponse);
+                        "message", "Thanh toán thất bại",
+                        "errorCode", responseCode,
+                        "orderId", payment.getOrderId()
+                ));
             }
 
         } catch (Exception e) {
-            log.error("Error processing VNPay return: {}", e.getMessage());
+            log.error("ERROR PROCESSING VNPay RETURN: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "error", "Loi xu ly thanh toan: " + e.getMessage()
+                    "message", "Lỗi xử lý thanh toán: " + e.getMessage()
             ));
         }
     }
 
-    @Operation(
-            summary = "Lay danh sach thanh toan theo Order",
-            description = "Lay tat ca cac payment cua mot order cu the"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Lay danh sach payment thanh cong"),
-            @ApiResponse(responseCode = "404", description = "Order khong ton tai")
-    })
     @GetMapping("/order/{orderId}")
-    public ResponseEntity<?> getPaymentsByOrder(
-            @Parameter(description = "ID cua order", required = true, example = "1")
-            @PathVariable Integer orderId) {
-
-        try {
-            log.info("Getting payments for order: {}", orderId);
-
-            if (!orderRepository.existsById(orderId)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Order khong ton tai: " + orderId));
-            }
-
-            var payments = paymentProcessingService.getPaymentsByOrder(orderId);
-            return ResponseEntity.ok(payments);
-
-        } catch (Exception e) {
-            log.error("Error getting payments for order {}: {}", orderId, e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    public ResponseEntity<?> getPaymentsByOrder(@PathVariable Integer orderId) {
+        if (!orderRepository.existsById(orderId)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Order không tồn tại"));
         }
+
+        return ResponseEntity.ok(paymentProcessingService.getPaymentsByOrder(orderId));
     }
 
-    @Operation(
-            summary = "Lay thong tin payment theo Transaction Reference",
-            description = "Lay chi tiet payment dua tren VNPay transaction reference"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Lay payment thanh cong"),
-            @ApiResponse(responseCode = "404", description = "Payment khong ton tai")
-    })
-    @GetMapping("/{txnRef}")
-    public ResponseEntity<?> getPaymentByTxnRef(
-            @Parameter(description = "VNPay Transaction Reference", required = true, example = "VNP1701423400123")
-            @PathVariable String txnRef) {
-
-        try {
-            log.info("Getting payment by txnRef: {}", txnRef);
-
-            var payment = paymentProcessingService.getPaymentByTxnRef(txnRef);
-            return ResponseEntity.ok(payment);
-
-        } catch (Exception e) {
-            log.error("Error getting payment by txnRef {}: {}", txnRef, e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    @GetMapping("/vnpay/txn/{txnRef}")
+    public ResponseEntity<?> getPaymentByTxnRef(@PathVariable String txnRef) {
+        return ResponseEntity.ok(paymentProcessingService.getPaymentByTxnRef(txnRef));
     }
 
-    @Operation(
-            summary = "Kiem tra trang thai thanh toan cua Order",
-            description = "Kiem tra order co the thanh toan duoc khong va trang thai hien tai"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Kiem tra thanh cong"),
-            @ApiResponse(responseCode = "404", description = "Order khong ton tai")
-    })
-    @GetMapping("/order/{orderId}/status")
-    public ResponseEntity<?> checkOrderPaymentStatus(
-            @Parameter(description = "ID cua order", required = true, example = "1")
-            @PathVariable Integer orderId) {
-
-        try {
-            log.info("Checking payment status for order: {}", orderId);
-
-            Order order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new RuntimeException("Khong tim thay order: " + orderId));
-
-            Map<String, Object> statusResponse = Map.of(
-                    "orderId", order.getId(),
-                    "totalAmount", order.getTotalAmount(),
-                    "paidAmount", order.getPaidAmount(),
-                    "remainingAmount", order.getRemainingAmount(),
-                    "status", order.getStatus(),
-                    "approvalStatus", order.getApprovalStatus(),
-                    "paymentStatus", order.getPaymentStatus(),
-                    "canProcessPayment", order.canProcessPayment(),
-                    "isFullyPaid", order.isFullyPaid()
-            );
-
-            return ResponseEntity.ok(statusResponse);
-
-        } catch (Exception e) {
-            log.error("Error checking payment status for order {}: {}", orderId, e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
 }

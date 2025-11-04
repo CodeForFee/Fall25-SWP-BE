@@ -94,6 +94,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/register", "/api/auth/login","/api/vehicles/**").permitAll()
                         // OPTIONS request cho preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/payments/vnpay/return").permitAll()
+                        .requestMatchers("/api/payments/**").permitAll()
                         // Các request khác cần JWT
                         .anyRequest().authenticated()
                 )
