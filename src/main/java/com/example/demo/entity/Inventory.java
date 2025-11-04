@@ -13,45 +13,43 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class Inventory {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    // Kết hợp: Sử dụng optional=false và thêm @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "dealer_id", nullable = false)
-    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dealer_id")
+    @JsonIgnore // 🔥 THÊM NÀY
     private Dealer dealer;
 
-    // Kết hợp: Sử dụng optional=false và giữ nguyên
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "vehicle_id", nullable = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id")
+    // 🔥 KHÔNG THÊM @JsonIgnore Ở ĐÂY VÌ CẦN HIỂN THỊ THÔNG TIN VEHICLE
+    // NHƯNG ĐÃ THÊM @JsonIgnore TRONG VEHICLE ĐỂ NGĂN VÒNG LẶP
     private Vehicle vehicle;
 
-    @Column(name = "available_quantity", nullable = false)
+    @Column(name = "available_quantity")
     private Integer availableQuantity;
 
-    @Column(name = "reserved_quantity", nullable = false)
+    @Column(name = "reserved_quantity")
     private Integer reservedQuantity;
 
-    // Kết hợp: Giữ nullable=false và thêm helper methods
-    @Column(name = "last_updated", nullable = false)
-    private LocalDateTime lastUpdated;
-
-    // Kết hợp: Giữ enum với tên EVM/FACTORY và DEALER
     @Enumerated(EnumType.STRING)
-    @Column(name = "inventory_type", nullable = false, length = 20)
+    @Column(name = "inventory_type")
     private InventoryType inventoryType;
 
+    @Column(name = "last_updated")
+    private LocalDateTime lastUpdated;
+
+    // Enum phân loại kho
     public enum InventoryType {
-        EVM,        // Kho tổng của hãng (tương đương FACTORY)
-        DEALER      // Kho thuộc đại lý
+        FACTORY,    // Kho hãng
+        DEALER      // Kho đại lý
     }
 
-    // 🔥 THÊM CÁC HELPER METHODS
+    // Helper methods
     public boolean isFactoryInventory() {
-        return inventoryType == InventoryType.EVM;
+        return inventoryType == InventoryType.FACTORY;
     }
 
     public boolean isDealerInventory() {
@@ -71,7 +69,7 @@ public class Inventory {
     }
 
     public boolean isLowStock() {
-        return availableQuantity <= 5;
+        return availableQuantity <= 5; // Ngưỡng low stock
     }
 
     // Business operations
@@ -107,25 +105,25 @@ public class Inventory {
 
     // Static factory methods
     public static Inventory createFactoryInventory(Vehicle vehicle, Integer initialQuantity) {
-        return Inventory.builder()
-                .vehicle(vehicle)
-                .dealer(null)
-                .availableQuantity(initialQuantity)
-                .reservedQuantity(0)
-                .inventoryType(InventoryType.EVM)
-                .lastUpdated(LocalDateTime.now())
-                .build();
+        Inventory inventory = new Inventory();
+        inventory.setVehicle(vehicle);
+        inventory.setDealer(null); // Factory inventory has no dealer
+        inventory.setAvailableQuantity(initialQuantity);
+        inventory.setReservedQuantity(0);
+        inventory.setInventoryType(InventoryType.FACTORY);
+        inventory.setLastUpdated(LocalDateTime.now());
+        return inventory;
     }
 
     public static Inventory createDealerInventory(Vehicle vehicle, Dealer dealer, Integer initialQuantity) {
-        return Inventory.builder()
-                .vehicle(vehicle)
-                .dealer(dealer)
-                .availableQuantity(initialQuantity)
-                .reservedQuantity(0)
-                .inventoryType(InventoryType.DEALER)
-                .lastUpdated(LocalDateTime.now())
-                .build();
+        Inventory inventory = new Inventory();
+        inventory.setVehicle(vehicle);
+        inventory.setDealer(dealer);
+        inventory.setAvailableQuantity(initialQuantity);
+        inventory.setReservedQuantity(0);
+        inventory.setInventoryType(InventoryType.DEALER);
+        inventory.setLastUpdated(LocalDateTime.now());
+        return inventory;
     }
 
     // Validation
