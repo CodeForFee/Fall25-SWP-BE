@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -17,4 +19,7 @@ public class CustomerResponseDTO {
     private String citizenId;
     private Integer dealerId;
     private String dealerName;
+    private BigDecimal totalSpent;
+    private BigDecimal totalDebt;
+    private Boolean isVip;
 }

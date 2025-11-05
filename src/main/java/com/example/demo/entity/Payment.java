@@ -46,6 +46,10 @@ public class Payment {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    // 🔥 THÊM FIELD PAYMENT PERCENTAGE
+    @Column(name = "payment_percentage")
+    private Integer paymentPercentage;
+
     // 🔥 CÁC TRƯỜNG CHO VNPAY
     @Column(name = "vnpay_transaction_no", length = 15)
     private String vnpayTransactionNo;
@@ -114,13 +118,19 @@ public class Payment {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public static Payment createVNPayPayment(Order order, java.math.BigDecimal amount) {
+    public static Payment createVNPayPayment(Order order, BigDecimal amount) {
+        Integer paymentPercentage = order.getPaymentPercentage();
+        if (paymentPercentage == null) {
+            paymentPercentage = 100;
+        }
+
         return Payment.builder()
                 .orderId(order.getId())
                 .amount(amount)
                 .paymentDate(java.time.LocalDate.now())
                 .status(Status.PENDING)
                 .paymentMethod(PaymentMethod.VNPAY)
+                .paymentPercentage(paymentPercentage) // 🔥 LẤY TỪ ORDER
                 .vnpayTxnRef("VNP" + System.currentTimeMillis())
                 .createdAt(java.time.LocalDateTime.now())
                 .updatedAt(java.time.LocalDateTime.now())

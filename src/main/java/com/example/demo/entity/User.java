@@ -79,7 +79,6 @@ public class User {
         DEALER_MANAGER,
         DEALER_STAFF,
         EVM_MANAGER,
-        CUSTOMER
     }
 
     // 🔥 THÊM HELPER METHODS

@@ -1,5 +1,6 @@
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,7 +25,7 @@ public class Order {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "quote_id", nullable = false)
+    @Column(name = "quote_id", nullable = false, unique = true) // ✅ Thêm unique constraint
     private Integer quoteId;
 
     @Column(name = "customer_id", nullable = false)
@@ -75,7 +76,6 @@ public class Order {
     @Column(name = "approval_notes", columnDefinition = "TEXT")
     private String approvalNotes;
 
-    // 🔥 THÊM PAYMENT STATUS
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status")
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
@@ -89,9 +89,20 @@ public class Order {
     @Column(name = "vnpay_transaction_ref")
     private String vnpayTransactionRef;
 
-    // Relationships
-    @ManyToOne(fetch = FetchType.LAZY)
+    @Column(name = "payment_percentage")
+    private Integer paymentPercentage;
+
+    @Column(name = "payment_notes", columnDefinition = "TEXT")
+    private String paymentNotes;
+
+    // 🔹 Thêm hạn trả góp (mặc định 12 tháng)
+    @Column(name = "installment_months")
+    private Integer installmentMonths = 12;
+
+    // ✅ Sửa thành @OneToOne - Một Quote chỉ tạo một Order
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JsonIgnore
     private Quote quote;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -111,6 +122,7 @@ public class Order {
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<Payment> payments;
 
+    // ===== ENUMS =====
     public enum OrderStatus {
         PENDING, APPROVED, COMPLETED, CANCELLED
     }
@@ -123,12 +135,11 @@ public class Order {
         PENDING_APPROVAL, APPROVED, REJECTED, INSUFFICIENT_INVENTORY
     }
 
-    // 🔥 THÊM PAYMENT STATUS ENUM
     public enum PaymentStatus {
         UNPAID, PARTIALLY_PAID, PAID, FAILED, REFUNDED
     }
 
-    // Helper methods
+    // ===== BUSINESS LOGIC =====
     public boolean canBeApproved() {
         return this.approvalStatus == OrderApprovalStatus.PENDING_APPROVAL &&
                 this.status == OrderStatus.PENDING;
@@ -139,34 +150,47 @@ public class Order {
                 this.status == OrderStatus.APPROVED;
     }
 
-    public boolean hasInventoryIssues() {
-        return this.approvalStatus == OrderApprovalStatus.INSUFFICIENT_INVENTORY;
-    }
-
-    // 🔥 THÊM METHOD KIỂM TRA CÓ THỂ THANH TOÁN
     public boolean canProcessPayment() {
-        return this.isApproved() &&
-                this.paymentStatus != PaymentStatus.PAID &&
-                this.remainingAmount.compareTo(BigDecimal.ZERO) > 0;
+        return true;
     }
 
-    public boolean isFullyPaid() {
-        return this.paymentStatus == PaymentStatus.PAID;
+    public BigDecimal calculatePaymentAmountByPercentage(Integer percentage) {
+        if (percentage == null || this.totalAmount == null) {
+            return BigDecimal.ZERO;
+        }
+
+        switch (percentage) {
+            case 30:
+                return this.totalAmount.multiply(new BigDecimal("0.30"));
+            case 50:
+                return this.totalAmount.multiply(new BigDecimal("0.50"));
+            case 70:
+                return this.totalAmount.multiply(new BigDecimal("0.70"));
+            case 100:
+                return this.totalAmount;
+            default:
+                throw new RuntimeException("Invalid payment percentage: " + percentage);
+        }
     }
 
-    // 🔥 METHOD CẬP NHẬT SAU KHI THANH TOÁN THÀNH CÔNG
-    public void markAsPaid() {
-        this.paymentStatus = PaymentStatus.PAID;
-        this.paidAmount = this.totalAmount;
-        this.remainingAmount = BigDecimal.ZERO;
-        this.isPaymentProcessed = true;
-        this.lastPaymentDate = LocalDateTime.now();
-        this.status = OrderStatus.COMPLETED;
+    public BigDecimal calculateRemainingDebt(Integer paymentPercentage) {
+        BigDecimal paidAmount = calculatePaymentAmountByPercentage(paymentPercentage);
+        return this.totalAmount.subtract(paidAmount);
     }
 
-    public void addPayment(BigDecimal amount) {
-        this.paidAmount = this.paidAmount.add(amount);
-        this.remainingAmount = this.totalAmount.subtract(this.paidAmount);
+    public void processPaymentWithPercentage(Integer paymentPercentage, String notes) {
+        if (paymentPercentage == null || (paymentPercentage != 30 && paymentPercentage != 50 &&
+                paymentPercentage != 70 && paymentPercentage != 100)) {
+            throw new RuntimeException("Invalid payment percentage. Must be 30, 50, 70, or 100");
+        }
+
+        this.paymentPercentage = paymentPercentage;
+        this.paymentNotes = notes;
+
+        BigDecimal paymentAmount = calculatePaymentAmountByPercentage(paymentPercentage);
+
+        this.paidAmount = paymentAmount;
+        this.remainingAmount = this.totalAmount.subtract(paymentAmount);
 
         if (this.remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
             this.paymentStatus = PaymentStatus.PAID;
@@ -175,40 +199,27 @@ public class Order {
         }
 
         this.lastPaymentDate = LocalDateTime.now();
+        this.isPaymentProcessed = true;
     }
 
-    // Static factory methods
-    public static Order createFromQuote(Quote quote, Integer dealerId, Integer userId, PaymentMethod paymentMethod) {
-        Order order = new Order();
-        order.setQuoteId(quote.getId());
-        order.setCustomerId(quote.getCustomerId());
-        order.setDealerId(dealerId);
-        order.setUserId(userId);
-        order.setOrderDate(LocalDate.now());
-        order.setTotalAmount(quote.getTotalAmount());
-        order.setTotalDiscount(BigDecimal.ZERO);
-        order.setPaidAmount(BigDecimal.ZERO);
-        order.setRemainingAmount(quote.getTotalAmount());
-        order.setStatus(OrderStatus.PENDING);
-        order.setPaymentMethod(paymentMethod);
-        order.setApprovalStatus(OrderApprovalStatus.PENDING_APPROVAL);
-        order.setPaymentStatus(PaymentStatus.UNPAID);
-        order.setNotes("Created from quote #" + quote.getId());
-        return order;
-    }
-
-    @Override
-    public String toString() {
-        return "Order{" +
-                "id=" + id +
-                ", quoteId=" + quoteId +
-                ", customerId=" + customerId +
-                ", dealerId=" + dealerId +
-                ", userId=" + userId +
-                ", totalAmount=" + totalAmount +
-                ", status=" + status +
-                ", approvalStatus=" + approvalStatus +
-                ", paymentStatus=" + paymentStatus +
-                '}';
+    // Thêm constructor mới vào Order.java
+    public Order(Integer quoteId, Integer customerId, Integer dealerId, Integer userId,
+                 LocalDate orderDate, OrderStatus status, PaymentMethod paymentMethod,
+                 String notes, Integer paymentPercentage) {
+        this.quoteId = quoteId;
+        this.customerId = customerId;
+        this.dealerId = dealerId;
+        this.userId = userId;
+        this.orderDate = orderDate;
+        this.status = status;
+        this.paymentMethod = paymentMethod;
+        this.notes = notes;
+        this.paymentPercentage = paymentPercentage;
+        this.approvalStatus = OrderApprovalStatus.PENDING_APPROVAL;
+        this.paymentStatus = PaymentStatus.UNPAID;
+        this.paidAmount = BigDecimal.ZERO;
+        this.remainingAmount = BigDecimal.ZERO;
+        this.totalDiscount = BigDecimal.ZERO;
+        this.installmentMonths = 12;
     }
 }

@@ -16,7 +16,7 @@ public class QuoteDTO {
     private Integer customerId;
     private Integer userId;
     private LocalDate createdDate;
-    private String status;
+    private String status  = "DRAFT";
     private LocalDate validUntil;
     private List<QuoteDetailDTO> quoteDetails;
 }

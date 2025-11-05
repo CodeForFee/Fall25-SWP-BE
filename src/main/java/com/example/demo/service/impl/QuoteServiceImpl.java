@@ -4,7 +4,8 @@ import com.example.demo.dto.QuoteDTO;
 import com.example.demo.dto.QuoteDetailDTO;
 import com.example.demo.dto.QuoteDetailResponseDTO;
 import com.example.demo.dto.QuoteResponseDTO;
-import com.example.demo.entity.*;
+import com.example.demo.entity.Quote;
+import com.example.demo.entity.QuoteDetail;
 import com.example.demo.repository.QuoteDetailRepository;
 import com.example.demo.repository.QuoteRepository;
 import com.example.demo.service.QuoteService;
@@ -62,13 +63,15 @@ public class QuoteServiceImpl implements QuoteService {
         try {
             log.debug("Creating quote for customer: {}", quoteDTO.getCustomerId());
 
+            // 🔥 VALIDATION: Kiểm tra trùng lặp vehicleId trong request
+            validateUniqueVehicleIds(quoteDTO);
+
             Quote quote = new Quote();
             quote.setCustomerId(quoteDTO.getCustomerId());
             quote.setUserId(quoteDTO.getUserId());
             quote.setCreatedDate(quoteDTO.getCreatedDate() != null ? quoteDTO.getCreatedDate() : LocalDate.now());
             quote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
             quote.setApprovalStatus(Quote.QuoteApprovalStatus.DRAFT);
-
             quote.setValidUntil(quoteDTO.getValidUntil());
 
             BigDecimal totalAmount = BigDecimal.ZERO;
@@ -84,7 +87,6 @@ public class QuoteServiceImpl implements QuoteService {
                     detail.setUnitPrice(detailDTO.getUnitPrice());
                     detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
                             detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
-
 
                     BigDecimal grossAmount = detailDTO.getUnitPrice()
                             .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
@@ -132,6 +134,9 @@ public class QuoteServiceImpl implements QuoteService {
     public QuoteResponseDTO updateQuote(Integer id, QuoteDTO quoteDTO) {
         Quote existingQuote = quoteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
+
+        // 🔥 VALIDATION: Kiểm tra trùng lặp vehicleId trong request
+        validateUniqueVehicleIds(quoteDTO);
 
         existingQuote.setCustomerId(quoteDTO.getCustomerId());
         existingQuote.setUserId(quoteDTO.getUserId());
@@ -214,6 +219,26 @@ public class QuoteServiceImpl implements QuoteService {
         log.info("Expired {} old quotes", expiredQuotes.size());
     }
 
+    /**
+     * 🔥 KIỂM TRA VEHICLEID DUY NHẤT TRONG REQUEST
+     */
+    private void validateUniqueVehicleIds(QuoteDTO quoteDTO) {
+        if (quoteDTO.getQuoteDetails() == null || quoteDTO.getQuoteDetails().isEmpty()) {
+            return;
+        }
+
+        List<Integer> vehicleIds = quoteDTO.getQuoteDetails().stream()
+                .map(QuoteDetailDTO::getVehicleId)
+                .collect(Collectors.toList());
+
+        // Kiểm tra trùng lặp
+        boolean hasDuplicates = vehicleIds.size() != vehicleIds.stream().distinct().count();
+
+        if (hasDuplicates) {
+            throw new RuntimeException("Duplicate vehicle IDs found in quote details. Each vehicle can only appear once.");
+        }
+    }
+
     private QuoteResponseDTO convertToResponseDTO(Quote quote) {
         QuoteResponseDTO dto = new QuoteResponseDTO();
         dto.setId(quote.getId());
@@ -222,7 +247,7 @@ public class QuoteServiceImpl implements QuoteService {
         dto.setCreatedDate(quote.getCreatedDate());
         dto.setTotalAmount(quote.getTotalAmount());
         dto.setStatus(quote.getStatus().name());
-        dto.setApprovalStatus(quote.getApprovalStatus().name()); // 🔥 THÊM APPROVAL STATUS
+        dto.setApprovalStatus(quote.getApprovalStatus().name());
         dto.setValidUntil(quote.getValidUntil());
         if (quote.getApprovedBy() != null) {
             dto.setApprovedBy(quote.getApprovedBy());
@@ -234,9 +259,9 @@ public class QuoteServiceImpl implements QuoteService {
             dto.setApprovalNotes(quote.getApprovalNotes());
         }
 
-        // Load quote details
-        List<QuoteDetail> details = quoteDetailRepository.findByQuoteId(quote.getId());
-        List<QuoteDetailResponseDTO> detailDTOs = details.stream()
+        // 🔥 QUAN TRỌNG: Sử dụng method mới để chỉ lấy UNIQUE VEHICLEID
+        List<QuoteDetail> uniqueDetails = quoteDetailRepository.findUniqueByQuoteId(quote.getId());
+        List<QuoteDetailResponseDTO> detailDTOs = uniqueDetails.stream()
                 .map(this::convertToDetailResponseDTO)
                 .collect(Collectors.toList());
         dto.setQuoteDetails(detailDTOs);

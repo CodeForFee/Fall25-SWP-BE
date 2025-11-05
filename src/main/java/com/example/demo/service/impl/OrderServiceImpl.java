@@ -89,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
+        orderDTO.getPaymentPercentage();
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
@@ -227,6 +228,14 @@ public class OrderServiceImpl implements OrderService {
         dto.setStatus(order.getStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod().name());
         dto.setNotes(order.getNotes());
+
+        // 🔥 THÊM CÁC FIELD MỚI
+        dto.setPaymentPercentage(order.getPaymentPercentage());
+        dto.setPaymentStatus(order.getPaymentStatus() != null ? order.getPaymentStatus().name() : null);
+        dto.setApprovalStatus(order.getApprovalStatus() != null ? order.getApprovalStatus().name() : null);
+        dto.setApprovedBy(order.getApprovedBy());
+        dto.setApprovedAt(order.getApprovedAt());
+        dto.setApprovalNotes(order.getApprovalNotes());
 
         List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
         List<OrderDetailResponseDTO> detailDTOs = details.stream()

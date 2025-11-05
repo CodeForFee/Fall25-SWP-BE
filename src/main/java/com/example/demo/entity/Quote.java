@@ -41,7 +41,7 @@ public class Quote {
     @Column(name = "status", nullable = false)
     private QuoteStatus status;
 
-    // 👈 THÊM GIÁ TRỊ MẶC ĐỊNH
+    // ✅ Giá trị mặc định là DRAFT khi tạo mới quote
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false)
     private QuoteApprovalStatus approvalStatus = QuoteApprovalStatus.DRAFT;
@@ -58,42 +58,68 @@ public class Quote {
     @Column(name = "approval_notes", columnDefinition = "TEXT")
     private String approvalNotes;
 
-    // Liên kết Many-to-One với User
+    // ✅ Các field tính toán tiền
+    @Column(name = "subtotal", precision = 15, scale = 2)
+    private BigDecimal subtotal;
+
+    @Column(name = "vat_amount", precision = 15, scale = 2)
+    private BigDecimal vatAmount;
+
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    private BigDecimal discountAmount;
+
+    @Column(name = "final_total", precision = 15, scale = 2)
+    private BigDecimal finalTotal;
+
+
+    // ========================= RELATIONSHIPS ========================= //
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
     private User user;
 
-    // Liên kết Many-to-One với Customer
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Customer customer;
 
-    // Liên kết One-to-Many với QuoteDetail
     @OneToMany(mappedBy = "quote", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<QuoteDetail> quoteDetails;
 
-    // Liên kết One-to-One với Order
     @OneToOne(mappedBy = "quote", fetch = FetchType.LAZY)
     @JsonIgnore
     private Order order;
 
+
+    // ========================= ENUMS ========================= //
+
     public enum QuoteStatus {
-        DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
+        DRAFT,
+        SENT,
+        ACCEPTED,
+        REJECTED,
+        EXPIRED
     }
 
-    // Enum mới cho approval flow
     public enum QuoteApprovalStatus {
         DRAFT,
+        PENDING_DEALER_MANAGER_APPROVAL,
         PENDING_EVM_APPROVAL,
         APPROVED,
         REJECTED,
         INSUFFICIENT_INVENTORY
     }
 
-    // Helper methods
-    public boolean canBeSubmittedForApproval() {
-        return this.approvalStatus == QuoteApprovalStatus.DRAFT &&
-                this.status == QuoteStatus.DRAFT;
+
+    // ========================= LOGIC (BUSINESS RULES) ========================= //
+
+    public boolean canBeSubmittedToDealerManager() {
+        return this.approvalStatus == QuoteApprovalStatus.DRAFT
+                && this.status == QuoteStatus.DRAFT;
+    }
+
+    public boolean canBeApprovedByDealerManager() {
+        return this.approvalStatus == QuoteApprovalStatus.PENDING_DEALER_MANAGER_APPROVAL
+                && this.status == QuoteStatus.DRAFT;
     }
 
     public boolean canBeApprovedByEVM() {
@@ -101,8 +127,11 @@ public class Quote {
     }
 
     public boolean canCreateOrder() {
-        return this.approvalStatus == QuoteApprovalStatus.APPROVED &&
-                this.status == QuoteStatus.ACCEPTED;
+        return this.approvalStatus == QuoteApprovalStatus.APPROVED
+                && this.status == QuoteStatus.ACCEPTED;
     }
-
+    public boolean canBeSubmittedForApproval() {
+        return this.approvalStatus == QuoteApprovalStatus.DRAFT &&
+                this.status == QuoteStatus.DRAFT;
+    }
 }

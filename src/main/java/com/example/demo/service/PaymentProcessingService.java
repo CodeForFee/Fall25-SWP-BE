@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.PaymentRequestDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.Payment;
 import com.example.demo.entity.QuoteDetail;
@@ -10,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -156,5 +157,56 @@ public class PaymentProcessingService {
 
     public BigDecimal getTotalPaidAmountByOrder(Integer orderId) {
         return paymentRepository.getTotalPaidAmountByOrderId(orderId);
+    }
+    @Transactional
+    public Payment processPaymentWithPercentage(PaymentRequestDTO paymentRequest) {
+        try {
+            log.info("Processing payment with percentage - Order: {}, Percentage: {}%",
+                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
+
+            Order order = orderRepository.findById(paymentRequest.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found: " + paymentRequest.getOrderId()));
+
+            // Tính toán số tiền thanh toán
+            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            // Tạo payment
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .amount(paymentAmount)
+                    .paymentMethod(Payment.PaymentMethod.valueOf(paymentRequest.getPaymentMethod()))
+                    .paymentPercentage(paymentRequest.getPaymentPercentage())
+                    .status(Payment.Status.COMPLETED)
+                    .notes(paymentRequest.getPaymentNotes())
+                    .paymentDate(LocalDate.now())
+                    .createdAt(java.time.LocalDateTime.now())
+                    .updatedAt(java.time.LocalDateTime.now())
+                    .build();
+
+            payment = paymentRepository.save(payment);
+
+            log.info("Payment processed successfully - ID: {}, Order: {}, Amount: {}",
+                    payment.getId(), order.getId(), paymentAmount);
+
+            return payment;
+
+        } catch (Exception e) {
+            log.error("Error processing payment with percentage: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to process payment: " + e.getMessage(), e);
+        }
+    }
+
+    private BigDecimal calculatePaymentAmount(Order order, Integer paymentPercentage) {
+        if (paymentPercentage == null || paymentPercentage <= 0) {
+            throw new RuntimeException("Invalid payment percentage: " + paymentPercentage);
+        }
+
+        BigDecimal orderTotal = order.getTotalAmount();
+        if (orderTotal == null) {
+            throw new RuntimeException("Order total amount is null");
+        }
+
+        return orderTotal.multiply(BigDecimal.valueOf(paymentPercentage))
+                .divide(BigDecimal.valueOf(100));
     }
 }
