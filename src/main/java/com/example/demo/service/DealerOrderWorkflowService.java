@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderResponseDTO;
+import com.example.demo.dto.PaymentRequestDTO;
 import com.example.demo.entity.*;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.QuoteRepository;
@@ -105,10 +106,10 @@ public class DealerOrderWorkflowService {
                     orderEntity.getTotalAmount(), orderEntity.getPaidAmount(),
                     orderDTO.getPaymentPercentage(), orderEntity.getRemainingAmount(), staffId);
 
+            // 🔥 CẬP NHẬT: Gọi service xử lý thanh toán THỰC TẾ
             if (orderDTO.getPaymentPercentage() != null && orderDTO.getPaymentPercentage() > 0) {
                 processDealerPayment(orderEntity, orderDTO);
             }
-
 
             orderResponse.setPaymentPercentage(orderDTO.getPaymentPercentage());
             orderResponse.setPaidAmount(orderEntity.getPaidAmount());
@@ -143,7 +144,6 @@ public class DealerOrderWorkflowService {
         }
     }
 
-
     private void validatePaymentPercentage(Integer paymentPercentage) {
         if (paymentPercentage != null &&
                 paymentPercentage != 0 &&
@@ -154,7 +154,6 @@ public class DealerOrderWorkflowService {
             throw new RuntimeException("Invalid payment percentage. Must be 0, 30, 50, 70, or 100");
         }
     }
-
 
     private void updateCustomerAfterOrder(Quote quote, Order order) {
         try {
@@ -173,7 +172,7 @@ public class DealerOrderWorkflowService {
         }
     }
 
-
+    // 🔥 CẬP NHẬT HOÀN TOÀN: Thay thế phần chỉ log bằng gọi service thực tế
     private void processDealerPayment(Order order, OrderDTO orderDTO) {
         try {
             if (orderDTO.getPaymentMethod() != null &&
@@ -183,11 +182,31 @@ public class DealerOrderWorkflowService {
                 log.info("Processing dealer payment - Order: {}, Method: {}, Percentage: {}%",
                         order.getId(), orderDTO.getPaymentMethod(), orderDTO.getPaymentPercentage());
 
-                // Gọi service xử lý thanh toán
-                // paymentProcessingService.processDealerPayment(order, orderDTO);
+                // Tạo payment request
+                PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
+                paymentRequest.setOrderId(order.getId());
+                paymentRequest.setPaymentMethod(orderDTO.getPaymentMethod());
+                paymentRequest.setPaymentPercentage(orderDTO.getPaymentPercentage());
+                paymentRequest.setPaymentNotes("Payment at order creation - Staff: " + orderDTO.getUserId());
+
+                // 🔥 GỌI SERVICE THỰC TẾ THEO PHƯƠNG THỨC THANH TOÁN
+                if ("CASH".equalsIgnoreCase(orderDTO.getPaymentMethod())) {
+                    paymentProcessingService.processCashPayment(paymentRequest);
+                } else if ("TRANSFER".equalsIgnoreCase(orderDTO.getPaymentMethod())) {
+                    paymentProcessingService.processBankTransferPayment(paymentRequest);
+                } else if ("VNPAY".equalsIgnoreCase(orderDTO.getPaymentMethod())) {
+                    // VNPay sẽ được xử lý riêng qua VNPayService
+                    log.info("VNPay payment will be processed separately via VNPayService");
+                } else {
+                    throw new RuntimeException("Unsupported payment method: " + orderDTO.getPaymentMethod());
+                }
+
+                log.info("Successfully processed {} payment for order: {}, percentage: {}%",
+                        orderDTO.getPaymentMethod(), order.getId(), orderDTO.getPaymentPercentage());
             }
         } catch (Exception e) {
-            log.error("Error processing dealer payment: {}", e.getMessage());
+            log.error("Error processing dealer payment: {}", e.getMessage(), e);
+            throw new RuntimeException("Payment processing failed: " + e.getMessage(), e);
         }
     }
 
@@ -197,8 +216,6 @@ public class DealerOrderWorkflowService {
                     .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
 
             log.info("VNPay payment success for order: {}, transaction: {}", orderId, vnpayTxnRef);
-
-            // Cập nhật trạng thái thanh toán
             order.setPaymentStatus(Order.PaymentStatus.PAID);
             order.setVnpayTransactionRef(vnpayTxnRef);
             orderRepository.save(order);

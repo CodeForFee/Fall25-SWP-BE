@@ -94,7 +94,7 @@ public class Payment {
     }
 
     public enum PaymentMethod {
-        CASH, TRANSFER, INSTALLMENT, CARD, VNPAY
+        CASH, TRANSFER, VNPAY
     }
 
     // 🔥 HELPER METHODS
