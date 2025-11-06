@@ -91,7 +91,7 @@ public class SecurityConfig {
                                 "/api-docs/**"
                         ).permitAll()
                         // Public APIs
-                        .requestMatchers("/api/users/register", "/api/auth/login","/api/vehicles/**").permitAll()
+                        .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**").permitAll()
                         // OPTIONS request cho preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/payments/vnpay/return").permitAll()

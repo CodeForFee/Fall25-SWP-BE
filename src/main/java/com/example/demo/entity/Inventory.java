@@ -19,13 +19,11 @@ public class Inventory {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dealer_id")
-    @JsonIgnore // 🔥 THÊM NÀY
+    @JsonIgnore
     private Dealer dealer;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
-    // 🔥 KHÔNG THÊM @JsonIgnore Ở ĐÂY VÌ CẦN HIỂN THỊ THÔNG TIN VEHICLE
-    // NHƯNG ĐÃ THÊM @JsonIgnore TRONG VEHICLE ĐỂ NGĂN VÒNG LẶP
     private Vehicle vehicle;
 
     @Column(name = "available_quantity")
