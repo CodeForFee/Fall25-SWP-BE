@@ -89,11 +89,7 @@ public class PaymentProcessingService {
             log.info("Updating inventory after successful payment for order: {}", payment.getOrder().getId());
 
             Order order = payment.getOrder();
-
-            // ✅ SỬ DỤNG PHƯƠNG THỨC CÓ SẴN: transferFactoryToDealer
             transferInventoryFromFactoryToDealer(order);
-
-            // ✅ CẬP NHẬT TRẠNG THÁI ORDER
             updateOrderStatusAfterPayment(order);
 
             auditLogService.log("INVENTORY_UPDATED_AFTER_PAYMENT", "ORDER", order.getId().toString(),

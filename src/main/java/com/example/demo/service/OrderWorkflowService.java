@@ -2,18 +2,16 @@ package com.example.demo.service;
 
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderResponseDTO;
-import com.example.demo.entity.Order;
-import com.example.demo.entity.Quote;
-import com.example.demo.entity.QuoteDetail;
-import com.example.demo.repository.OrderRepository;
-import com.example.demo.repository.QuoteRepository;
-import com.example.demo.repository.QuoteDetailRepository;
+import com.example.demo.entity.*;
+import com.example.demo.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,18 +27,35 @@ public class OrderWorkflowService {
     private final OrderService orderService;
     private final InventoryService inventoryService;
     private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
+    private final DealerService dealerService;
+    private final DealerRepository dealerRepository;
 
-
+    @Transactional
     public OrderResponseDTO createOrderFromApprovedQuote(OrderDTO orderDTO) {
-        log.info("=== START createOrderFromApprovedQuote - quoteId: {}", orderDTO.getQuoteId());
+        log.info("=== START createOrderFromApprovedQuote - quoteId: {}, paymentMethod: {}, paymentPercentage: {}%",
+                orderDTO.getQuoteId(), orderDTO.getPaymentMethod(), orderDTO.getPaymentPercentage());
 
         try {
             Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
                     .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
 
+            // 🔥 VALIDATE PAYMENT PERCENTAGE
+            validatePaymentPercentage(orderDTO.getPaymentPercentage());
+
             if (!quote.canCreateOrder()) {
                 throw new RuntimeException("Cannot create order from quote. Approval status: " +
                         quote.getApprovalStatus() + ", Quote status: " + quote.getStatus());
+            }
+
+            // 🔥 VALIDATE USER (DEALER MANAGER)
+            if (orderDTO.getUserId() != null) {
+                User user = userRepository.findById(orderDTO.getUserId())
+                        .orElseThrow(() -> new RuntimeException("User not found: " + orderDTO.getUserId()));
+
+                if (!user.getDealerId().equals(quote.getDealerId())) {
+                    throw new RuntimeException("User does not belong to quote's dealer");
+                }
             }
 
             orderDTO.setStatus("PENDING");
@@ -49,15 +64,57 @@ public class OrderWorkflowService {
             Order orderEntity = orderRepository.findById(order.getId())
                     .orElseThrow(() -> new RuntimeException("Order not found after creation: " + order.getId()));
 
+            // 🔥 XỬ LÝ THANH TOÁN THEO PERCENTAGE
+            if (orderDTO.getPaymentPercentage() != null && orderDTO.getPaymentPercentage() > 0) {
+                BigDecimal paidAmount = orderEntity.getTotalAmount()
+                        .multiply(BigDecimal.valueOf(orderDTO.getPaymentPercentage()))
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+                BigDecimal remainingAmount = orderEntity.getTotalAmount().subtract(paidAmount);
+
+                orderEntity.setPaidAmount(paidAmount);
+                orderEntity.setRemainingAmount(remainingAmount);
+                orderEntity.setPaymentPercentage(orderDTO.getPaymentPercentage());
+
+                // 🔥 CẬP NHẬT PAYMENT STATUS
+                if (orderDTO.getPaymentPercentage() == 100) {
+                    orderEntity.setPaymentStatus(Order.PaymentStatus.PAID);
+                } else {
+                    orderEntity.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
+                }
+
+                log.info("Payment processed - Total: {}, Paid: {} ({}%), Remaining: {}",
+                        orderEntity.getTotalAmount(), paidAmount,
+                        orderDTO.getPaymentPercentage(), remainingAmount);
+            }
+
             orderEntity.setApprovalStatus(Order.OrderApprovalStatus.PENDING_APPROVAL);
             orderRepository.save(orderEntity);
 
+            // 🔥 CẬP NHẬT NỢ CỦA DEALER NẾU CÓ SỐ TIỀN CÒN LẠI
+            if (orderEntity.getRemainingAmount() != null &&
+                    orderEntity.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
+                updateDealerOutstandingDebt(orderEntity.getDealerId(), orderEntity.getRemainingAmount());
+            }
+
             auditLogService.log("ORDER_CREATED_FROM_APPROVED_QUOTE", "ORDER", order.getId().toString(),
-                    Map.of("quoteId", quote.getId(), "dealerId", orderDTO.getDealerId(),
+                    Map.of("quoteId", quote.getId(),
+                            "dealerId", orderDTO.getDealerId(),
+                            "paymentPercentage", orderDTO.getPaymentPercentage() != null ? orderDTO.getPaymentPercentage() : 0,
+                            "paymentMethod", orderDTO.getPaymentMethod(),
+                            "totalAmount", orderEntity.getTotalAmount(),
+                            "paidAmount", orderEntity.getPaidAmount(),
+                            "remainingAmount", orderEntity.getRemainingAmount(),
                             "approvalStatus", "PENDING_APPROVAL"));
 
-            log.info("Order created from approved quote - Order: {}, Quote: {}, Status: PENDING_APPROVAL",
-                    order.getId(), quote.getId());
+            log.info("Order created from approved quote - Order: {}, Quote: {}, Payment: {}%, Status: PENDING_APPROVAL",
+                    order.getId(), quote.getId(), orderDTO.getPaymentPercentage());
+
+            // 🔥 CẬP NHẬT ORDER RESPONSE VỚI THÔNG TIN THANH TOÁN
+            order.setPaymentPercentage(orderDTO.getPaymentPercentage());
+            order.setPaidAmount(orderEntity.getPaidAmount());
+            order.setRemainingAmount(orderEntity.getRemainingAmount());
+            order.setPaymentStatus(orderEntity.getPaymentStatus() != null ? orderEntity.getPaymentStatus().name() : null);
 
             return order;
 
@@ -67,6 +124,37 @@ public class OrderWorkflowService {
         }
     }
 
+    // 🔥 THÊM METHOD VALIDATE PAYMENT PERCENTAGE
+    private void validatePaymentPercentage(Integer paymentPercentage) {
+        if (paymentPercentage != null &&
+                paymentPercentage != 0 &&
+                paymentPercentage != 30 &&
+                paymentPercentage != 50 &&
+                paymentPercentage != 70 &&
+                paymentPercentage != 100) {
+            throw new RuntimeException("Invalid payment percentage. Must be 0, 30, 50, 70, or 100");
+        }
+    }
+
+    // 🔥 THÊM METHOD CẬP NHẬT NỢ DEALER
+    @Transactional
+    protected void updateDealerOutstandingDebt(Integer dealerId, BigDecimal debtAmount) {
+        try {
+            Dealer dealer = dealerRepository.findById(dealerId)
+                    .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
+
+            // Cộng dồn vào số nợ hiện tại
+            BigDecimal currentDebt = dealer.getOutstandingDebt() != null ? dealer.getOutstandingDebt() : BigDecimal.ZERO;
+            dealer.setOutstandingDebt(currentDebt.add(debtAmount));
+            dealerRepository.save(dealer);
+
+            log.info("Updated dealer outstanding debt - Dealer: {}, Added: {}, New Total: {}",
+                    dealerId, debtAmount, dealer.getOutstandingDebt());
+        } catch (Exception e) {
+            log.error("Error updating dealer outstanding debt: {}", e.getMessage());
+            // Không throw exception để không ảnh hưởng đến luồng chính
+        }
+    }
 
     public void approveOrder(Integer orderId, Integer approvedBy, String notes) {
         log.info("=== START approveOrder - orderId: {}", orderId);
@@ -86,7 +174,6 @@ public class OrderWorkflowService {
             throw new RuntimeException("Failed to approve order: " + e.getMessage(), e);
         }
     }
-
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void handleInsufficientInventory(Integer orderId) {

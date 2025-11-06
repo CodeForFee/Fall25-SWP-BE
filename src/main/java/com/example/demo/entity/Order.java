@@ -95,11 +95,9 @@ public class Order {
     @Column(name = "payment_notes", columnDefinition = "TEXT")
     private String paymentNotes;
 
-    // 🔹 Thêm hạn trả góp (mặc định 12 tháng)
     @Column(name = "installment_months")
     private Integer installmentMonths = 12;
 
-    // ✅ Sửa thành @OneToOne - Một Quote chỉ tạo một Order
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
     @JsonIgnore
