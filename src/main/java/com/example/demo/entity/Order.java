@@ -25,10 +25,10 @@ public class Order {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "quote_id", nullable = false, unique = true) // ✅ Thêm unique constraint
+    @Column(name = "quote_id", nullable = false, unique = true)
     private Integer quoteId;
 
-    @Column(name = "customer_id", nullable = false)
+    @Column(name = "customer_id")
     private Integer customerId;
 
     @Column(name = "dealer_id", nullable = false)

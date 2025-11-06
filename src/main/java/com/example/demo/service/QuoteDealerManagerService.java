@@ -31,7 +31,7 @@ public class QuoteDealerManagerService {
     private final AuditLogService auditLogService;
 
     /**
-     * Dealer Manager duyệt quote - TỰ ĐỘNG KIỂM TRA KHO LẠI KHI Ở TRẠNG THÁI INSUFFICIENT_INVENTORY
+     * 🔥 MANAGER DUYỆT QUOTE CỦA STAFF CÙNG DEALER
      */
     @Transactional
     public void approveQuoteByManager(Integer quoteId, Integer managerId, String notes) {
@@ -41,17 +41,13 @@ public class QuoteDealerManagerService {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
 
-        Customer customer = quote.getCustomer();
-
-        // 🔥 SỬA LỖI: Kiểm tra điều kiện duyệt quote
-        if (!quote.canBeApprovedByDealerManager() &&
-                quote.getApprovalStatus() != Quote.QuoteApprovalStatus.INSUFFICIENT_INVENTORY) {
-            throw new RuntimeException("Quote cannot be approved by dealer manager. Current approval status: "
-                    + quote.getApprovalStatus() + ", Status: " + quote.getStatus());
+        // 🔥 CHỈ KIỂM TRA: Manager cùng dealer duyệt quote của staff
+        if (!quote.canBeApprovedByDealerManager(manager)) {
+            throw new RuntimeException("Manager can only approve quotes from staff in the same dealer");
         }
 
-        // 🔥 TỰ ĐỘNG KIỂM TRA KHO LẠI
-        boolean hasSufficientInventory = checkDealerInventoryForQuote(quoteId, customer.getDealerId());
+        // 🔥 KIỂM TRA KHO DEALER
+        boolean hasSufficientInventory = checkDealerInventoryForQuote(quoteId, quote.getDealerId());
 
         if (!hasSufficientInventory) {
             quote.setApprovalStatus(Quote.QuoteApprovalStatus.INSUFFICIENT_INVENTORY);
@@ -60,17 +56,18 @@ public class QuoteDealerManagerService {
             throw new RuntimeException("Không thể duyệt quote: Kho đại lý không đủ mẫu xe đang được đặt");
         }
 
-        // Tính toán lại và duyệt quote
+        // 🔥 TÍNH TOÁN VÀ DUYỆT QUOTE
         var calculationResult = quoteCalculationService.calculateQuoteTotal(quoteId);
 
-        if (calculationResult.qualifiesForVip() && !customer.getIsVip()) {
+        if (calculationResult.qualifiesForVip() && !quote.getCustomer().getIsVip()) {
+            Customer customer = quote.getCustomer();
             customer.setIsVip(true);
             customerRepository.save(customer);
         }
 
-        // 🔥 DUYỆT THÀNH CÔNG
         quote.setApprovalStatus(Quote.QuoteApprovalStatus.APPROVED);
-        quote.setStatus(Quote.QuoteStatus.ACCEPTED); // 🔥 QUAN TRỌNG: Cập nhật cả status
+        quote.setStatus(Quote.QuoteStatus.ACCEPTED);
+        quote.setCurrentApproverRole(null); // 🔥 HOÀN THÀNH PHÊ DUYỆT
         quote.setApprovedBy(managerId);
         quote.setApprovedAt(LocalDateTime.now());
         quote.setApprovalNotes(notes);
@@ -82,11 +79,14 @@ public class QuoteDealerManagerService {
 
         quoteRepository.save(quote);
 
-        log.info("Quote {} approved by dealer manager {}", quoteId, managerId);
+        auditLogService.log("QUOTE_APPROVED_BY_DEALER_MANAGER", "QUOTE", quoteId.toString(),
+                Map.of("managerId", managerId, "dealerId", quote.getDealerId(), "notes", notes));
+
+        log.info("Manager {} approved quote {} from staff {}", managerId, quoteId, quote.getUserId());
     }
 
     /**
-     * Dealer Manager từ chối quote - CHO PHÉP TỪ CẢ INSUFFICIENT_INVENTORY
+     * 🔥 MANAGER TỪ CHỐI QUOTE CỦA STAFF CÙNG DEALER
      */
     @Transactional
     public void rejectQuoteByManager(Integer quoteId, Integer managerId, String reason) {
@@ -96,34 +96,27 @@ public class QuoteDealerManagerService {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
 
-        // Kiểm tra quote thuộc dealer của manager
-        Customer customer = quote.getCustomer();
-        if (!customer.getDealerId().equals(manager.getDealerId())) {
-            throw new RuntimeException("Quote does not belong to manager's dealer");
-        }
-
-        // 🔥 CHO PHÉP từ chối từ cả PENDING và INSUFFICIENT_INVENTORY
-        if (quote.getApprovalStatus() != Quote.QuoteApprovalStatus.PENDING_DEALER_MANAGER_APPROVAL &&
-                quote.getApprovalStatus() != Quote.QuoteApprovalStatus.INSUFFICIENT_INVENTORY) {
-            throw new RuntimeException("Quote cannot be rejected in current status: " + quote.getApprovalStatus());
+        // 🔥 CHỈ KIỂM TRA: Manager cùng dealer từ chối quote của staff
+        if (!quote.canBeApprovedByDealerManager(manager)) {
+            throw new RuntimeException("Manager can only reject quotes from staff in the same dealer");
         }
 
         quote.setApprovalStatus(Quote.QuoteApprovalStatus.REJECTED);
         quote.setStatus(Quote.QuoteStatus.REJECTED);
+        quote.setCurrentApproverRole(null);
         quote.setApprovedBy(managerId);
         quote.setApprovedAt(LocalDateTime.now());
         quote.setApprovalNotes(reason);
         quoteRepository.save(quote);
 
         auditLogService.log("QUOTE_REJECTED_BY_DEALER_MANAGER", "QUOTE", quoteId.toString(),
-                Map.of("managerId", managerId, "reason", reason, "previousStatus", quote.getApprovalStatus()));
+                Map.of("managerId", managerId, "reason", reason));
 
-        log.info("Quote {} rejected by dealer manager {} from {} status",
-                quoteId, managerId, quote.getApprovalStatus());
+        log.info("Manager {} rejected quote {} from staff {}", managerId, quoteId, quote.getUserId());
     }
 
     /**
-     * Kiểm tra kho dealer có đủ hàng cho quote không
+     * 🔥 KIỂM TRA KHO DEALER CÓ ĐỦ HÀNG CHO QUOTE KHÔNG
      */
     public boolean checkDealerInventoryForQuote(Integer quoteId, Integer dealerId) {
         List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(quoteId);
@@ -146,7 +139,7 @@ public class QuoteDealerManagerService {
     }
 
     /**
-     * Lấy danh sách quotes chờ Dealer Manager duyệt (bao gồm cả INSUFFICIENT_INVENTORY)
+     * 🔥 LẤY DANH SÁCH QUOTES CHỜ DEALER MANAGER DUYỆT (BAO GỒM CẢ INSUFFICIENT_INVENTORY)
      */
     public List<Quote> getPendingQuotesForManager(Integer managerId) {
         User manager = userRepository.findById(managerId)
@@ -156,7 +149,7 @@ public class QuoteDealerManagerService {
     }
 
     /**
-     * Lấy quotes đã approved sẵn sàng tạo order
+     * 🔥 LẤY QUOTES ĐÃ APPROVED SẴN SÀNG TẠO ORDER
      */
     public List<Quote> getApprovedQuotesReadyForOrder(Integer managerId) {
         User manager = userRepository.findById(managerId)
@@ -166,7 +159,7 @@ public class QuoteDealerManagerService {
     }
 
     /**
-     * Lấy quote theo ID
+     * 🔥 LẤY QUOTE THEO ID
      */
     public Quote getQuoteById(Integer quoteId) {
         return quoteRepository.findById(quoteId)

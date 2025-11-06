@@ -28,7 +28,8 @@ public class Quote {
     @Column(name = "customer_id", nullable = false)
     private Integer customerId;
 
-    @Column(name = "user_id", nullable = false)
+    // 🔥 SỬA: user_id có thể null để xử lý luồng manager
+    @Column(name = "user_id", nullable = true)
     private Integer userId;
 
     @Column(name = "created_date", nullable = false)
@@ -41,10 +42,19 @@ public class Quote {
     @Column(name = "status", nullable = false)
     private QuoteStatus status;
 
-    // ✅ Giá trị mặc định là DRAFT khi tạo mới quote
     @Enumerated(EnumType.STRING)
-    @Column(name = "approval_status", nullable = false)
+    @Column(name = "approval_status", nullable = false, length = 30)
     private QuoteApprovalStatus approvalStatus = QuoteApprovalStatus.DRAFT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "creator_role", nullable = false)
+    private User.Role creatorRole;
+
+    @Column(name = "dealer_id", nullable = false)
+    private Integer dealerId;
+
+    @Column(name = "current_approver_role", length = 50)
+    private String currentApproverRole;
 
     @Column(name = "valid_until")
     private LocalDate validUntil;
@@ -71,9 +81,6 @@ public class Quote {
     @Column(name = "final_total", precision = 15, scale = 2)
     private BigDecimal finalTotal;
 
-
-    // ========================= RELATIONSHIPS ========================= //
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
     private User user;
@@ -88,7 +95,6 @@ public class Quote {
     @OneToOne(mappedBy = "quote", fetch = FetchType.LAZY)
     @JsonIgnore
     private Order order;
-
 
     // ========================= ENUMS ========================= //
 
@@ -109,17 +115,37 @@ public class Quote {
         INSUFFICIENT_INVENTORY
     }
 
+    // ========================= BUSINESS RULES ========================= //
 
-    // ========================= LOGIC (BUSINESS RULES) ========================= //
-
-    public boolean canBeSubmittedToDealerManager() {
-        return this.approvalStatus == QuoteApprovalStatus.DRAFT
-                && this.status == QuoteStatus.DRAFT;
+    /**
+     * 🔥 STAFF CÓ THỂ GỬI QUOTE CỦA CHÍNH MÌNH CHO MANAGER
+     */
+    public boolean canBeSubmittedToDealerManager(User currentUser) {
+        return this.creatorRole == User.Role.DEALER_STAFF &&
+                this.userId != null && this.userId.equals(currentUser.getUserId()) && // Staff gửi quote của chính mình
+                this.approvalStatus == QuoteApprovalStatus.DRAFT &&
+                this.status == QuoteStatus.DRAFT;
     }
 
-    public boolean canBeApprovedByDealerManager() {
-        return this.approvalStatus == QuoteApprovalStatus.PENDING_DEALER_MANAGER_APPROVAL
-                && this.status == QuoteStatus.DRAFT;
+    /**
+     * 🔥 MANAGER CÙNG DEALER CÓ THỂ DUYỆT QUOTE CỦA STAFF
+     */
+    public boolean canBeApprovedByDealerManager(User manager) {
+        return this.creatorRole == User.Role.DEALER_STAFF && // Quote được tạo bởi staff
+                manager.getRole() == User.Role.DEALER_MANAGER && // Người duyệt là manager
+                this.dealerId.equals(manager.getDealerId()) && // Cùng dealer
+                this.approvalStatus == QuoteApprovalStatus.PENDING_DEALER_MANAGER_APPROVAL &&
+                this.status == QuoteStatus.DRAFT;
+    }
+
+    /**
+     * 🔥 STAFF CÓ THỂ TẠO ORDER TỪ QUOTE ĐÃ ĐƯỢC MANAGER DUYỆT
+     */
+    public boolean canCreateOrder(User currentUser) {
+        return this.creatorRole == User.Role.DEALER_STAFF && // Quote được tạo bởi staff
+                this.userId != null && this.userId.equals(currentUser.getUserId()) && // Staff tạo order từ quote của chính mình
+                this.approvalStatus == QuoteApprovalStatus.APPROVED &&
+                this.status == QuoteStatus.ACCEPTED;
     }
 
     public boolean canBeApprovedByEVM() {

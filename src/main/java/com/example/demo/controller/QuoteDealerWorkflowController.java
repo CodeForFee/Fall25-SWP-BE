@@ -29,22 +29,16 @@ public class QuoteDealerWorkflowController {
     private final PaymentProcessingService paymentProcessingService;
     private final DealerOrderWorkflowService dealerOrderWorkflowService;
 
-    // ==================== QUOTE WORKFLOW (GIỐNG CẤU TRÚC EVM) ====================
 
-    /**
-     * Dealer Staff gửi quote cho Dealer Manager duyệt
-     * GIỐNG: POST /api/workflow/quotes/{quoteId}/submit-for-approval
-     */
     @PostMapping("/quotes/{quoteId}/submit-for-approval")
-    public ResponseEntity<String> submitForManagerApproval(@PathVariable Integer quoteId) {
-        quoteDealerStaffService.submitToDealerManager(quoteId);
+    public ResponseEntity<String> submitForManagerApproval(
+            @PathVariable Integer quoteId,
+            @RequestParam Integer staffId) {  // 🔥 THÊM staffId parameter
+        quoteDealerStaffService.submitToDealerManager(quoteId, staffId);
         return ResponseEntity.ok("Quote submitted for dealer manager approval successfully");
     }
 
-    /**
-     * Dealer Manager duyệt quote
-     * GIỐNG: POST /api/workflow/quotes/{quoteId}/approve
-     */
+
     @PostMapping("/quotes/{quoteId}/approve")
     public ResponseEntity<String> approveQuote(
             @PathVariable Integer quoteId,
@@ -54,10 +48,6 @@ public class QuoteDealerWorkflowController {
         return ResponseEntity.ok("Quote approved by dealer manager successfully");
     }
 
-    /**
-     * Dealer Manager từ chối quote
-     * GIỐNG: POST /api/workflow/quotes/{quoteId}/reject
-     */
     @PostMapping("/quotes/{quoteId}/reject")
     public ResponseEntity<String> rejectQuote(
             @PathVariable Integer quoteId,
@@ -67,10 +57,6 @@ public class QuoteDealerWorkflowController {
         return ResponseEntity.ok("Quote rejected by dealer manager");
     }
 
-    /**
-     * Kiểm tra kho đại lý cho quote
-     * GIỐNG: GET /api/workflow/quotes/{quoteId}/check-inventory
-     */
     @GetMapping("/quotes/{quoteId}/check-inventory")
     public ResponseEntity<Map<String, Object>> checkInventoryForQuote(@PathVariable Integer quoteId) {
         Quote quote = quoteDealerManagerService.getQuoteById(quoteId);
@@ -87,45 +73,29 @@ public class QuoteDealerWorkflowController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Lấy quotes chờ Dealer Manager duyệt
-     * GIỐNG: GET /api/workflow/quotes/pending-approval
-     */
     @GetMapping("/quotes/pending-approval")
     public ResponseEntity<List<Quote>> getQuotesPendingApproval(@RequestParam Integer managerId) {
         List<Quote> quotes = quoteDealerManagerService.getPendingQuotesForManager(managerId);
         return ResponseEntity.ok(quotes);
     }
 
-    /**
-     * Lấy quotes đã approved sẵn sàng tạo order
-     * GIỐNG: GET /api/workflow/quotes/approved-ready
-     */
     @GetMapping("/quotes/approved-ready")
     public ResponseEntity<List<Quote>> getApprovedQuotesReadyForOrder(@RequestParam Integer managerId) {
         List<Quote> quotes = quoteDealerManagerService.getApprovedQuotesReadyForOrder(managerId);
         return ResponseEntity.ok(quotes);
     }
 
-    /**
-     * Kiểm tra có thể tạo order từ quote không
-     * GIỐNG: GET /api/workflow/quotes/{quoteId}/can-create-order
-     */
     @GetMapping("/quotes/{quoteId}/can-create-order")
     public ResponseEntity<Boolean> canCreateOrderFromQuote(@PathVariable Integer quoteId) {
         boolean canCreate = orderWorkflowService.canCreateOrderFromQuote(quoteId);
         return ResponseEntity.ok(canCreate);
     }
 
-    // ==================== ORDER WORKFLOW (GIỐNG CẤU TRÚC EVM) ====================
-
-    /**
-     * Dealer tạo order từ quote đã approved
-     * GIỐNG: POST /api/workflow/orders/create-from-approved-quote
-     */
     @PostMapping("/orders/create-from-approved-quote")
-    public ResponseEntity<OrderResponseDTO> createOrderFromApprovedQuote(@RequestBody OrderDTO orderDTO) {
-        OrderResponseDTO order = dealerOrderWorkflowService.createOrderFromApprovedQuote(orderDTO);
+    public ResponseEntity<OrderResponseDTO> createOrderFromApprovedQuote(
+            @RequestBody OrderDTO orderDTO,
+            @RequestParam Integer staffId) {
+        OrderResponseDTO order = dealerOrderWorkflowService.createOrderFromApprovedQuote(orderDTO, staffId);
         return ResponseEntity.ok(order);
     }
 

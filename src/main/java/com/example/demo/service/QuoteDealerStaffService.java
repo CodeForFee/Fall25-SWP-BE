@@ -3,9 +3,11 @@ package com.example.demo.service;
 import com.example.demo.entity.Quote;
 import com.example.demo.entity.QuoteDetail;
 import com.example.demo.entity.Customer;
+import com.example.demo.entity.User;
 import com.example.demo.repository.QuoteRepository;
 import com.example.demo.repository.QuoteDetailRepository;
 import com.example.demo.repository.CustomerRepository;
+import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,25 +23,33 @@ public class QuoteDealerStaffService {
     private final QuoteRepository quoteRepository;
     private final QuoteDetailRepository quoteDetailRepository;
     private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
     private final QuoteCalculationService quoteCalculationService;
     private final AuditLogService auditLogService;
 
-    public void submitToDealerManager(Integer quoteId) {
+    /**
+     * 🔥 STAFF GỬI QUOTE CỦA CHÍNH MÌNH CHO MANAGER
+     */
+    public void submitToDealerManager(Integer quoteId, Integer staffId) {
+        User staff = userRepository.findById(staffId)
+                .orElseThrow(() -> new RuntimeException("Staff not found: " + staffId));
+
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
 
-        if (!quote.canBeSubmittedToDealerManager()) {
-            throw new RuntimeException("Quote cannot be submitted to dealer manager. Current status: " +
-                    quote.getApprovalStatus() + ", " + quote.getStatus());
+        // 🔥 CHỈ KIỂM TRA: Staff gửi quote của chính mình
+        if (!quote.canBeSubmittedToDealerManager(staff)) {
+            throw new RuntimeException("Staff can only submit their own quotes to manager");
         }
 
         quote.setApprovalStatus(Quote.QuoteApprovalStatus.PENDING_DEALER_MANAGER_APPROVAL);
+        quote.setCurrentApproverRole("DEALER_MANAGER");
         quoteRepository.save(quote);
 
         auditLogService.log("QUOTE_SUBMITTED_TO_DEALER_MANAGER", "QUOTE", quoteId.toString(),
-                Map.of("action", "SUBMITTED_TO_DEALER_MANAGER"));
+                Map.of("staffId", staffId, "dealerId", quote.getDealerId()));
 
-        log.info("Quote {} submitted to dealer manager by user {}", quoteId, quote.getUserId());
+        log.info("Staff {} submitted quote {} to dealer manager", staffId, quoteId);
     }
 
     public List<Quote> getQuotesByStaff(Integer staffId) {

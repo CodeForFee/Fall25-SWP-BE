@@ -30,7 +30,7 @@ public class OrderWorkflowService {
     private final InventoryService inventoryService;
     private final AuditLogService auditLogService;
 
-    // Loại bỏ @Transactional để tránh nested transaction
+
     public OrderResponseDTO createOrderFromApprovedQuote(OrderDTO orderDTO) {
         log.info("=== START createOrderFromApprovedQuote - quoteId: {}", orderDTO.getQuoteId());
 
@@ -67,7 +67,7 @@ public class OrderWorkflowService {
         }
     }
 
-    // Loại bỏ @Transactional và sử dụng REQUIRES_NEW cho các method con
+
     public void approveOrder(Integer orderId, Integer approvedBy, String notes) {
         log.info("=== START approveOrder - orderId: {}", orderId);
 
@@ -87,7 +87,7 @@ public class OrderWorkflowService {
         }
     }
 
-    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void handleInsufficientInventory(Integer orderId) {
         try {
@@ -108,7 +108,6 @@ public class OrderWorkflowService {
         }
     }
 
-    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void performOrderApproval(Integer orderId, Integer approvedBy, String notes) {
         log.info("Starting order approval transaction - orderId: {}", orderId);
@@ -143,7 +142,6 @@ public class OrderWorkflowService {
         }
     }
 
-    // Giữ nguyên REQUIRES_NEW để tách biệt transaction
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void rejectOrder(Integer orderId, Integer rejectedBy, String reason) {
         log.info("Rejecting order {} by user {}", orderId, rejectedBy);
