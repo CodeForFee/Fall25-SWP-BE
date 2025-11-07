@@ -186,4 +186,26 @@ public class InventoryService {
     public List<Inventory> getInventoryByDealer(Integer dealerId) {
         return inventoryRepository.findByDealerId(dealerId);
     }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deductDealerInventory(Integer dealerId, Integer vehicleId, Integer quantity) {
+        if (quantity == null || quantity <= 0) {
+            throw new RuntimeException("Invalid quantity: " + quantity);
+        }
+
+        Inventory dealerInventory = inventoryRepository.findByDealerIdAndVehicleIdAndInventoryType(
+                        dealerId, vehicleId, Inventory.InventoryType.DEALER)
+                .orElseThrow(() -> new RuntimeException("Dealer inventory not found for vehicle: " + vehicleId));
+
+        if (!dealerInventory.hasSufficientQuantity(quantity)) {
+            throw new RuntimeException("Dealer insufficient inventory for vehicle: " + vehicleId +
+                    ". Available: " + dealerInventory.getAvailableQuantity() + ", Requested: " + quantity);
+        }
+
+        dealerInventory.setAvailableQuantity(dealerInventory.getAvailableQuantity() - quantity);
+        dealerInventory.setLastUpdated(LocalDateTime.now());
+        inventoryRepository.save(dealerInventory);
+
+        log.info("Deducted dealer inventory - Dealer: {}, Vehicle: {}, Quantity: {}, Remaining: {}",
+                dealerId, vehicleId, quantity, dealerInventory.getAvailableQuantity());
+    }
 }

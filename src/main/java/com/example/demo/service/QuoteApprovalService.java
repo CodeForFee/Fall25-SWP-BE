@@ -23,7 +23,6 @@ public class QuoteApprovalService {
     private final InventoryService inventoryService;
     private final AuditLogService auditLogService;
 
-    // Loại bỏ @Transactional để tránh nested transaction
     public void submitForEVMApproval(Integer quoteId) {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
@@ -42,7 +41,6 @@ public class QuoteApprovalService {
         log.info("Quote {} submitted for EVM approval by user {}", quoteId, quote.getUserId());
     }
 
-    // Loại bỏ @Transactional để tránh nested transaction
     public void approveQuoteByEVM(Integer quoteId, Integer evmUserId, String notes) {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
@@ -73,7 +71,6 @@ public class QuoteApprovalService {
         log.info("Quote {} approved by EVM user {} with inventory check", quoteId, evmUserId);
     }
 
-    // Loại bỏ @Transactional để tránh nested transaction
     public void rejectQuoteByEVM(Integer quoteId, Integer evmUserId, String reason) {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));

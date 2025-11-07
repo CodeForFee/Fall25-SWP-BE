@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @AllArgsConstructor
@@ -41,22 +42,22 @@ public class Dealer {
     @Column(name = "status", nullable = false)
     private DealerStatus status;
 
-    // Liên kết One-to-Many với User - THÊM @JsonIgnore
+    // 🔥 CHỈ THÊM TRƯỜNG TỔNG NỢ
+    @Column(name = "outstanding_debt", precision = 15, scale = 2)
+    private BigDecimal outstandingDebt = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<User> users;
 
-    // Liên kết One-to-Many với Order - THÊM @JsonIgnore
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Order> orders;
 
-    // Liên kết One-to-Many với Customer - THÊM @JsonIgnore
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Customer> customers;
 
-    // 🔥 THÊM: Liên kết One-to-Many với Inventory
     @OneToMany(mappedBy = "dealer", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Inventory> inventories;
@@ -65,7 +66,6 @@ public class Dealer {
         ACTIVE, INACTIVE, SUSPENDED
     }
 
-    // 🔥 THÊM HELPER METHODS
     public boolean isActive() {
         return this.status == DealerStatus.ACTIVE;
     }
@@ -100,6 +100,7 @@ public class Dealer {
         dealer.setRepresentativeName(representativeName);
         dealer.setRegion(region);
         dealer.setStatus(DealerStatus.ACTIVE);
+        dealer.setOutstandingDebt(BigDecimal.ZERO);
         return dealer;
     }
 
@@ -133,6 +134,7 @@ public class Dealer {
                 ", representativeName='" + representativeName + '\'' +
                 ", region='" + region + '\'' +
                 ", status=" + status +
+                ", outstandingDebt=" + outstandingDebt +
                 '}';
     }
 }

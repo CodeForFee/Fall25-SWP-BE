@@ -64,12 +64,6 @@ public class OrderController {
         return ResponseEntity.ok(orderService.createOrder(orderDTO));
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật đơn hàng")
-    public ResponseEntity<OrderResponseDTO> updateOrder(@PathVariable Integer id, @RequestBody OrderDTO orderDTO) {
-        return ResponseEntity.ok(orderService.updateOrder(id, orderDTO));
-    }
-
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa đơn hàng")

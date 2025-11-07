@@ -45,8 +45,7 @@ public class VNPayService {
     @Transactional
     public VNPayPaymentResponseDTO createPayment(VNPayPaymentRequestDTO paymentRequest, HttpServletRequest request) {
         try {
-            log.info("START Creating VNPay Payment");
-            log.info("Order ID: {}", paymentRequest.getOrderId());
+            log.info("Creating VNPay payment for order: {}", paymentRequest.getOrderId());
 
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found: " + paymentRequest.getOrderId()));
@@ -54,24 +53,29 @@ public class VNPayService {
             if (!order.canProcessPayment()) {
                 throw new RuntimeException("Order cannot process payment");
             }
-//            BigDecimal amount = order.getTotalAmount();
-            BigDecimal amount = new BigDecimal("100000");
+
+            // Lấy total amount từ order
+            BigDecimal amount = order.getTotalAmount();
 
             Payment payment = Payment.createVNPayPayment(order, amount);
             payment = paymentRepository.save(payment);
-            log.info("Payment created: ID={}, TxnRef={}, Amount={}", payment.getId(), payment.getVnpayTxnRef(), amount);
+
+            log.info("Payment created - ID: {}, TxnRef: {}, Amount: {}",
+                    payment.getId(), payment.getVnpayTxnRef(), amount);
+
             String paymentUrl = createVNPayPaymentUrl(payment, order, request);
+
             VNPayPaymentResponseDTO response = new VNPayPaymentResponseDTO();
             response.setCode("00");
             response.setMessage("Success");
             response.setPaymentUrl(paymentUrl);
             response.setTransactionId(payment.getVnpayTxnRef());
 
-            log.info("END Creating VNPay Payment - SUCCESS");
+            log.info("VNPay payment created successfully for order: {}", order.getId());
             return response;
 
         } catch (Exception e) {
-            log.error("ERROR Creating VNPay Payment: {}", e.getMessage(), e);
+            log.error("Error creating VNPay payment: {}", e.getMessage(), e);
 
             VNPayPaymentResponseDTO response = new VNPayPaymentResponseDTO();
             response.setCode("99");
@@ -87,22 +91,23 @@ public class VNPayService {
             vnpParams.put("vnp_Version", "2.1.0");
             vnpParams.put("vnp_Command", "pay");
             vnpParams.put("vnp_TmnCode", vnpayTmnCode);
-            long amount = payment.getAmount().multiply(new java.math.BigDecimal(100)).longValue();
+            long amount = payment.getAmount().multiply(new BigDecimal(100)).longValue();
             vnpParams.put("vnp_Amount", String.valueOf(amount));
             vnpParams.put("vnp_CurrCode", "VND");
             vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());
-            String orderInfo = "Payment for order " + order.getId();
-            vnpParams.put("vnp_OrderInfo", orderInfo);
+
+            vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId());
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayReturnUrl);
-            String ipAddr = getRealClientIpAddress(request);
-            vnpParams.put("vnp_IpAddr", ipAddr);
+            vnpParams.put("vnp_IpAddr", getRealClientIpAddress(request));
+
             String createDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             vnpParams.put("vnp_CreateDate", createDate);
+
             String expireDate = LocalDateTime.now().plusMinutes(15).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             vnpParams.put("vnp_ExpireDate", expireDate);
-            vnpParams.put("vnp_BankCode", "VNBANK");
+
             log.info("VNPay Parameters: {}", vnpParams);
             StringBuilder hashData = new StringBuilder();
             vnpParams.forEach((key, value) -> {
@@ -110,11 +115,10 @@ public class VNPayService {
                     if (hashData.length() > 0) {
                         hashData.append('&');
                     }
-                    hashData.append(key)
-                            .append('=')
-                            .append(URLEncoder.encode(value, StandardCharsets.UTF_8));
+                    hashData.append(key).append('=').append(URLEncoder.encode(value, StandardCharsets.UTF_8));
                 }
             });
+
             String hashDataStr = hashData.toString();
             log.info("Hash Data: {}", hashDataStr);
             String vnpSecureHash = hmacSHA512(vnpaySecretKey, hashDataStr);
@@ -122,7 +126,6 @@ public class VNPayService {
             String finalUrl = vnpayUrl + "?" + hashDataStr + "&vnp_SecureHash=" + vnpSecureHash;
 
             log.info("Final VNPay URL: {}", finalUrl);
-
             return finalUrl;
 
         } catch (Exception e) {
@@ -130,6 +133,7 @@ public class VNPayService {
             throw new RuntimeException("Failed to create VNPay URL: " + e.getMessage(), e);
         }
     }
+
 
     private String hmacSHA512(String key, String data) throws Exception {
         Mac hmac = Mac.getInstance("HmacSHA512");
@@ -144,12 +148,13 @@ public class VNPayService {
     }
 
     private String getRealClientIpAddress(HttpServletRequest request) {
+        // Tạm thời trả về 127.0.0.1 để test
         return "127.0.0.1";
     }
 
     public boolean validateResponse(Map<String, String> params) {
         try {
-            log.info("🔐 VALIDATING VNPay RESPONSE");
+            log.info("Validating VNPay response");
 
             String vnpSecureHash = params.get("vnp_SecureHash");
             if (vnpSecureHash == null) {
@@ -160,6 +165,7 @@ public class VNPayService {
             Map<String, String> hashParams = new TreeMap<>(params);
             hashParams.remove("vnp_SecureHash");
             hashParams.remove("vnp_SecureHashType");
+
             StringBuilder hashData = new StringBuilder();
             Iterator<Map.Entry<String, String>> iterator = hashParams.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -182,12 +188,11 @@ public class VNPayService {
             String calculatedHash = hmacSHA512(vnpaySecretKey, hashDataStr);
             boolean isValid = vnpSecureHash.equalsIgnoreCase(calculatedHash);
 
-            log.info("Signature validation: {}", isValid ? "✅ VALID" : "❌ INVALID");
-            log.info("Received Hash: {}", vnpSecureHash);
-            log.info("Calculated Hash: {}", calculatedHash);
+            log.info("Signature validation: {}", isValid ? "VALID" : "INVALID");
+            log.info("Received Hash: {}, Calculated Hash: {}", vnpSecureHash, calculatedHash);
 
             if (!isValid) {
-                log.error("❌ HASH MISMATCH - Check encoding and parameter order");
+                log.error("Hash mismatch - Check encoding and parameter order");
                 log.error("Params received: {}", params);
             }
 
@@ -199,4 +204,47 @@ public class VNPayService {
         }
     }
 
+    public String testCreatePaymentUrl() {
+        try {
+            Map<String, String> testParams = new TreeMap<>();
+            testParams.put("vnp_Version", "2.1.0");
+            testParams.put("vnp_Command", "pay");
+            testParams.put("vnp_TmnCode", "2E1QAK9N");
+            testParams.put("vnp_Amount", "10000000");
+            testParams.put("vnp_CurrCode", "VND");
+            testParams.put("vnp_TxnRef", "TEST123456");
+            testParams.put("vnp_OrderInfo", "Test payment");
+            testParams.put("vnp_OrderType", "other");
+            testParams.put("vnp_Locale", "vn");
+            testParams.put("vnp_ReturnUrl", "http://localhost:8080/api/payments/return");
+            testParams.put("vnp_IpAddr", "127.0.0.1");
+            testParams.put("vnp_CreateDate", "20251104150000");
+            testParams.put("vnp_ExpireDate", "2025110811500");
+
+            StringBuilder hashData = new StringBuilder();
+            testParams.forEach((key, value) -> {
+                if (value != null && !value.isEmpty()) {
+                    if (hashData.length() > 0) {
+                        hashData.append('&');
+                    }
+                    hashData.append(key).append('=').append(URLEncoder.encode(value, StandardCharsets.UTF_8));
+                }
+            });
+
+            String hashDataStr = hashData.toString();
+            log.info("Test Hash Data: {}", hashDataStr);
+
+            String testSecretKey = "SSV6W78GLQ48H28KQCB89XZI4XVJS7Y9";
+            String signature = hmacSHA512(testSecretKey, hashDataStr);
+
+            log.info("Test Signature: {}", signature);
+
+            String finalUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?" + hashDataStr + "&vnp_SecureHash=" + signature;
+
+            return "Test URL: " + finalUrl;
+
+        } catch (Exception e) {
+            return "Test Error: " + e.getMessage();
+        }
+    }
 }

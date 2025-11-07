@@ -1,4 +1,3 @@
-
 package com.example.demo.service.impl;
 
 import com.example.demo.dto.DealerDTO;
@@ -10,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -51,6 +51,9 @@ public class DealerServiceIMPL implements DealerService {
             dealer.setRepresentativeName(dealerDTO.getRepresentativeName());
             dealer.setRegion(dealerDTO.getRegion());
             dealer.setStatus(dealerDTO.getStatus() != null ? dealerDTO.getStatus() : Dealer.DealerStatus.ACTIVE);
+
+            // 🔥 KHỞI TẠO OUTSTANDING DEBT = 0
+            dealer.setOutstandingDebt(BigDecimal.ZERO);
 
             Dealer savedDealer = dealerRepository.save(dealer);
             return convertToResponseDTO(savedDealer);
@@ -115,6 +118,10 @@ public class DealerServiceIMPL implements DealerService {
         dto.setRepresentativeName(dealer.getRepresentativeName());
         dto.setRegion(dealer.getRegion());
         dto.setStatus(dealer.getStatus());
+
+        // 🔥 THÊM OUTSTANDING DEBT VÀO RESPONSE
+        dto.setOutstandingDebt(dealer.getOutstandingDebt() != null ? dealer.getOutstandingDebt() : BigDecimal.ZERO);
+
         return dto;
     }
 }

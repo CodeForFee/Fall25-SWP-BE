@@ -1,5 +1,7 @@
 package com.example.demo.dto;
 
+
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,19 +24,19 @@ public class OrderResponseDTO {
     private Integer userId;
     private LocalDate orderDate;
     private BigDecimal totalAmount;
+    private BigDecimal totalDiscount;
     private BigDecimal paidAmount;
     private BigDecimal remainingAmount;
     private String status;
     private String paymentMethod;
     private String notes;
-    private List<OrderDetailResponseDTO> orderDetails;
-    private BigDecimal totalDiscount;
+    private Integer paymentPercentage;
+    private String paymentStatus;
     private String approvalStatus;
     private Integer approvedBy;
     private LocalDateTime approvedAt;
     private String approvalNotes;
-    private String quoteStatus;
-    private String quoteApprovalStatus;
 
+    private List<OrderDetailResponseDTO> orderDetails;
 
 }

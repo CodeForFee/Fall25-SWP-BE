@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -18,4 +20,5 @@ public class DealerResponseDTO {
     private String representativeName;
     private String region;
     private Dealer.DealerStatus status;
+    private BigDecimal outstandingDebt;
 }
