@@ -5,17 +5,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class ContractDTO {
+    private String documentImage;
+    private Integer customerId;
     private Integer orderId;
-    private String vin;
-    private String contractNumber;
-    private LocalDate signedDate;
-    private String customerSignature;
-    private String dealerRepresentative;
+    private Integer dealerId;
 }

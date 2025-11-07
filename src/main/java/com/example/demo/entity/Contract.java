@@ -6,8 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
-
 @Entity
 @Table(name = "Contract")
 @Getter
@@ -21,26 +19,28 @@ public class Contract {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "order_id", nullable = false)
+    @Column(name = "document_image", columnDefinition = "TEXT")
+    private String documentImage;
+
+    @Column(name = "customer_id", nullable = false)
+    private Integer customerId;
+
+    @Column(name = "order_id")
     private Integer orderId;
 
-    @Column(name = "vin", nullable = false, length = 50)
-    private String vin;
+    @Column(name = "dealer_id", nullable = false)
+    private Integer dealerId;
 
-    @Column(name = "contract_number", nullable = false, unique = true, length = 100)
-    private String contractNumber;
+    // Relationships
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Customer customer;
 
-    @Column(name = "signed_date")
-    private LocalDate signedDate;
-
-    @Column(name = "customer_signature", columnDefinition = "TEXT")
-    private String customerSignature;
-
-    @Column(name = "dealer_representative", length = 255)
-    private String dealerRepresentative;
-
-    // Relationships - SỬA LẠI @JoinColumn
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Order order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dealer_id", referencedColumnName = "dealerId", insertable = false, updatable = false)
+    private Dealer dealer;
 }

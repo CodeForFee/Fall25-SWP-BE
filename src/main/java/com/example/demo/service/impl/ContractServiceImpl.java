@@ -3,6 +3,7 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.ContractDTO;
 import com.example.demo.dto.ContractResponseDTO;
 import com.example.demo.entity.Contract;
+import com.example.demo.entity.Order;
 import com.example.demo.repository.ContractRepository;
 import com.example.demo.service.ContractService;
 import lombok.RequiredArgsConstructor;
@@ -27,10 +28,29 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
-    public ContractResponseDTO getContractById(Integer id) {
-        Contract contract = contractRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + id));
-        return convertToResponseDTO(contract);
+    public List<ContractResponseDTO> getContractsByDealer(Integer dealerId) {
+        return contractRepository.findByDealerId(dealerId).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ContractResponseDTO> searchContractsByCustomerName(String customerName) {
+        return contractRepository.findByCustomerNameContaining(customerName).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Order getOrderByContractId(Integer contractId) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + contractId));
+
+        if (contract.getOrder() == null) {
+            throw new RuntimeException("Hợp đồng này không có order liên kết");
+        }
+
+        return contract.getOrder();
     }
 
     @Override
@@ -38,17 +58,11 @@ public class ContractServiceImpl implements ContractService {
         try {
             log.debug("Creating contract");
 
-            if (contractRepository.existsByContractNumber(contractDTO.getContractNumber())) {
-                throw new RuntimeException("Số hợp đồng đã tồn tại");
-            }
-
             Contract contract = new Contract();
+            contract.setDocumentImage(contractDTO.getDocumentImage());
+            contract.setCustomerId(contractDTO.getCustomerId());
             contract.setOrderId(contractDTO.getOrderId());
-            contract.setVin(contractDTO.getVin());
-            contract.setContractNumber(contractDTO.getContractNumber());
-            contract.setSignedDate(contractDTO.getSignedDate());
-            contract.setCustomerSignature(contractDTO.getCustomerSignature());
-            contract.setDealerRepresentative(contractDTO.getDealerRepresentative());
+            contract.setDealerId(contractDTO.getDealerId());
 
             Contract savedContract = contractRepository.save(contract);
             log.debug("Contract created successfully");
@@ -60,47 +74,20 @@ public class ContractServiceImpl implements ContractService {
         }
     }
 
-    @Override
-    public ContractResponseDTO updateContract(Integer id, ContractDTO contractDTO) {
-        Contract existingContract = contractRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + id));
-
-
-        if (!existingContract.getContractNumber().equals(contractDTO.getContractNumber()) &&
-                contractRepository.existsByContractNumber(contractDTO.getContractNumber())) {
-            throw new RuntimeException("Số hợp đồng đã tồn tại");
-        }
-
-
-        existingContract.setOrderId(contractDTO.getOrderId());
-        existingContract.setVin(contractDTO.getVin());
-        existingContract.setContractNumber(contractDTO.getContractNumber());
-        existingContract.setSignedDate(contractDTO.getSignedDate());
-        existingContract.setCustomerSignature(contractDTO.getCustomerSignature());
-        existingContract.setDealerRepresentative(contractDTO.getDealerRepresentative());
-
-        Contract updatedContract = contractRepository.save(existingContract);
-        log.debug("Contract updated successfully");
-        return convertToResponseDTO(updatedContract);
-    }
-
-    @Override
-    public void deleteContract(Integer id) {
-        Contract contract = contractRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + id));
-        contractRepository.delete(contract);
-        log.debug("Contract deleted successfully");
-    }
-
     private ContractResponseDTO convertToResponseDTO(Contract contract) {
         ContractResponseDTO dto = new ContractResponseDTO();
         dto.setId(contract.getId());
+        dto.setDocumentImage(contract.getDocumentImage());
+        dto.setCustomerId(contract.getCustomerId());
         dto.setOrderId(contract.getOrderId());
-        dto.setVin(contract.getVin());
-        dto.setContractNumber(contract.getContractNumber());
-        dto.setSignedDate(contract.getSignedDate());
-        dto.setCustomerSignature(contract.getCustomerSignature());
-        dto.setDealerRepresentative(contract.getDealerRepresentative());
+        dto.setDealerId(contract.getDealerId());
+        if (contract.getCustomer() != null) {
+            dto.setCustomerName(contract.getCustomer().getFullName());
+        }
+        if (contract.getDealer() != null) {
+            dto.setDealerName(contract.getDealer().getName());
+        }
+
         return dto;
     }
 }
