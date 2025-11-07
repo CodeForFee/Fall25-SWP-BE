@@ -97,7 +97,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
-                        // Các request khác cần JWT
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
