@@ -143,7 +143,6 @@ public class OrderWorkflowService {
             Dealer dealer = dealerRepository.findById(dealerId)
                     .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
 
-            // Cộng dồn vào số nợ hiện tại
             BigDecimal currentDebt = dealer.getOutstandingDebt() != null ? dealer.getOutstandingDebt() : BigDecimal.ZERO;
             dealer.setOutstandingDebt(currentDebt.add(debtAmount));
             dealerRepository.save(dealer);
