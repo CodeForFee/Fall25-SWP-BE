@@ -7,6 +7,8 @@ import com.example.demo.repository.DealerRepository; // Cập nhật
 import com.example.demo.repository.TestDriveRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.example.demo.service.EmailService; 
+import com.example.demo.dto.Mailbody; // Giả sử DTO mail của bạn ở đây
 
 import java.util.List;
 
@@ -16,13 +18,14 @@ public class TestDriveService {
 
     private final TestDriveRepository testDriveRepository;
     private final DealerRepository dealerRepository; // <-- Cập nhật
+    private final EmailService emailService;
 
     /**
      * Lưu đơn của khách hàng
      */
     public TestDriveRequest scheduleTestDrive(TestDriveRequestDTO dto) {
         
-        // 1. Tìm 'Dealer' từ 'dealerId'
+        // 1. Tìm Dealer
         Dealer dealer = dealerRepository.findById(dto.getDealerId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy Dealer với ID: " + dto.getDealerId()));
 
@@ -32,16 +35,44 @@ public class TestDriveService {
         newRequest.setCustomerEmail(dto.getCustomerEmail());
         newRequest.setPhoneNumber(dto.getPhoneNumber());
         newRequest.setTime(dto.getTime());
-        
-        // 3. Set đối tượng Dealer
         newRequest.setDealer(dealer);
         
-        return testDriveRepository.save(newRequest);
+        TestDriveRequest savedRequest = testDriveRepository.save(newRequest);
+        sendConfirmationEmailToCustomer(savedRequest);
+        return savedRequest;
     }
 
-    
-    public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) { // <-- Cập nhật
-        // Gọi hàm query mới
+    public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) {
         return testDriveRepository.findByDealerId(dealerId); 
+    }
+
+    private void sendConfirmationEmailToCustomer(TestDriveRequest request) {
+        
+        String customerEmail = request.getCustomerEmail();
+        String customerName = request.getCustomerName();
+        String dealerName = request.getDealer().getName();
+        String dealerAddress = request.getDealer().getAddress();
+
+        String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
+        String body = "Chào " + customerName + ",\n\n" +
+                      "Cảm ơn bạn đã đặt lịch lái thử tại " + dealerName + ". \n\n" +
+                      "Chúng tôi đã nhận được thông tin lịch hẹn của bạn:\n" +
+                      "--------------------------------\n" +
+                      "Giờ hẹn: " + request.getTime() + "\n" +
+                      "Địa điểm: " + dealerAddress + "\n" +
+                      "Số điện thoại: " + request.getPhoneNumber() + "\n" +
+                      "--------------------------------\n\n" +
+                      "Nhân viên của chúng tôi sẽ sớm liên hệ với bạn để xác nhận lần cuối.\n\n" +
+                      "Trân trọng,\n" +
+                      "Đội ngũ " + dealerName;
+
+        // Tạo Mailbody DTO (giống như cách bạn làm ở ForgotPassword)
+        Mailbody mailbody = Mailbody.builder()
+                .to(customerEmail)
+                .subject(subject)
+                .text(body)
+                .build();
+
+        emailService.sendSimpleMessage(mailbody);
     }
 }
