@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.Instant;
 
 @Entity 
-@Table(name = "activity_log")
+@Table(name = "Activity_log")
 @Getter 
 @Setter 
 @NoArgsConstructor 
@@ -34,11 +34,11 @@ public class ActivityLog {
     @Column(length=64) 
     private String targetId;
 
-    @Column(columnDefinition="NVARCHAR(MAX)") 
+    @Column(columnDefinition="TEXT")
     private String message;      // câu hiển thị
-    
-    @Lob 
-    @Column(columnDefinition="NVARCHAR(MAX)") 
+
+    @Lob
+    @Column(columnDefinition="TEXT")
     private String metadataJson; // JSON string
 
     @CreationTimestamp 

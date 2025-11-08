@@ -45,7 +45,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                     .build();
 
             auditLogRepository.save(auditLog);
-            log.info("Audit log created: {} {} by {}", action, entityType, username);
+            log.debug("Audit log created: {} {} by {}", action, entityType, username);
         } catch (Exception e) {
             log.error("Failed to create audit log: {}", e.getMessage(), e);
         }

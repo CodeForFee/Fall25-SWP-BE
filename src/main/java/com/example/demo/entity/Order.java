@@ -1,5 +1,6 @@
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -8,10 +9,11 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "order_table")
+@Table(name = "Order_table")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,10 +25,10 @@ public class Order {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "quote_id", nullable = false)
+    @Column(name = "quote_id", nullable = false, unique = true)
     private Integer quoteId;
 
-    @Column(name = "customer_id", nullable = false)
+    @Column(name = "customer_id")
     private Integer customerId;
 
     @Column(name = "dealer_id", nullable = false)
@@ -61,9 +63,44 @@ public class Order {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    // Relationships - SỬA LẠI CÁC @JoinColumn
-    @ManyToOne(fetch = FetchType.LAZY)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status")
+    private OrderApprovalStatus approvalStatus;
+
+    @Column(name = "approved_by")
+    private Integer approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "approval_notes", columnDefinition = "TEXT")
+    private String approvalNotes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status")
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "last_payment_date")
+    private LocalDateTime lastPaymentDate;
+
+    @Column(name = "is_payment_processed")
+    private Boolean isPaymentProcessed = false;
+
+    @Column(name = "vnpay_transaction_ref")
+    private String vnpayTransactionRef;
+
+    @Column(name = "payment_percentage")
+    private Integer paymentPercentage;
+
+    @Column(name = "payment_notes", columnDefinition = "TEXT")
+    private String paymentNotes;
+
+    @Column(name = "installment_months")
+    private Integer installmentMonths = 12;
+
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JsonIgnore
     private Quote quote;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -80,11 +117,107 @@ public class Order {
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<Contract> contracts;
 
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    private List<Payment> payments;
+
+    // ===== ENUMS =====
     public enum OrderStatus {
         PENDING, APPROVED, COMPLETED, CANCELLED
     }
 
     public enum PaymentMethod {
-        CASH, TRANSFER, INSTALLMENT, CARD
+        CASH, TRANSFER, INSTALLMENT, CARD, VNPAY
+    }
+
+    public enum OrderApprovalStatus {
+        PENDING_APPROVAL, APPROVED, REJECTED, INSUFFICIENT_INVENTORY
+    }
+
+    public enum PaymentStatus {
+        UNPAID, PARTIALLY_PAID, PAID, FAILED, REFUNDED
+    }
+
+    // ===== BUSINESS LOGIC =====
+    public boolean canBeApproved() {
+        return this.approvalStatus == OrderApprovalStatus.PENDING_APPROVAL &&
+                this.status == OrderStatus.PENDING;
+    }
+
+    public boolean isApproved() {
+        return this.approvalStatus == OrderApprovalStatus.APPROVED &&
+                this.status == OrderStatus.APPROVED;
+    }
+
+    public boolean canProcessPayment() {
+        return true;
+    }
+
+    public BigDecimal calculatePaymentAmountByPercentage(Integer percentage) {
+        if (percentage == null || this.totalAmount == null) {
+            return BigDecimal.ZERO;
+        }
+
+        switch (percentage) {
+            case 30:
+                return this.totalAmount.multiply(new BigDecimal("0.30"));
+            case 50:
+                return this.totalAmount.multiply(new BigDecimal("0.50"));
+            case 70:
+                return this.totalAmount.multiply(new BigDecimal("0.70"));
+            case 100:
+                return this.totalAmount;
+            default:
+                throw new RuntimeException("Invalid payment percentage: " + percentage);
+        }
+    }
+
+    public BigDecimal calculateRemainingDebt(Integer paymentPercentage) {
+        BigDecimal paidAmount = calculatePaymentAmountByPercentage(paymentPercentage);
+        return this.totalAmount.subtract(paidAmount);
+    }
+
+    public void processPaymentWithPercentage(Integer paymentPercentage, String notes) {
+        if (paymentPercentage == null || (paymentPercentage != 30 && paymentPercentage != 50 &&
+                paymentPercentage != 70 && paymentPercentage != 100)) {
+            throw new RuntimeException("Invalid payment percentage. Must be 30, 50, 70, or 100");
+        }
+
+        this.paymentPercentage = paymentPercentage;
+        this.paymentNotes = notes;
+
+        BigDecimal paymentAmount = calculatePaymentAmountByPercentage(paymentPercentage);
+
+        this.paidAmount = paymentAmount;
+        this.remainingAmount = this.totalAmount.subtract(paymentAmount);
+
+        if (this.remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            this.paymentStatus = PaymentStatus.PAID;
+        } else {
+            this.paymentStatus = PaymentStatus.PARTIALLY_PAID;
+        }
+
+        this.lastPaymentDate = LocalDateTime.now();
+        this.isPaymentProcessed = true;
+    }
+
+    // Thêm constructor mới vào Order.java
+    public Order(Integer quoteId, Integer customerId, Integer dealerId, Integer userId,
+                 LocalDate orderDate, OrderStatus status, PaymentMethod paymentMethod,
+                 String notes, Integer paymentPercentage) {
+        this.quoteId = quoteId;
+        this.customerId = customerId;
+        this.dealerId = dealerId;
+        this.userId = userId;
+        this.orderDate = orderDate;
+        this.status = status;
+        this.paymentMethod = paymentMethod;
+        this.notes = notes;
+        this.paymentPercentage = paymentPercentage;
+        this.approvalStatus = OrderApprovalStatus.PENDING_APPROVAL;
+        this.paymentStatus = PaymentStatus.UNPAID;
+        this.paidAmount = BigDecimal.ZERO;
+        this.remainingAmount = BigDecimal.ZERO;
+        this.totalDiscount = BigDecimal.ZERO;
+        this.installmentMonths = 12;
     }
 }

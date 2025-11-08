@@ -20,9 +20,12 @@ public class OrderDTO {
     private Integer userId;
     private LocalDate orderDate;
     private String status;
+    private Integer paymentPercentage;
+    private String paymentStatus;
     private String paymentMethod;
+    private String paymentNotes;
     private String notes;
     private BigDecimal paidAmount;
+    private String createdByRole;
     private List<OrderDetailDTO> orderDetails;
-
 }

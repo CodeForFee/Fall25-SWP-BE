@@ -38,7 +38,7 @@ public class CustomerServiceIMPL implements CustomerService {
     @Override
     public CustomerResponseDTO createCustomer(CustomerDTO customerDTO) {
         try {
-            log.info("=== START CREATE CUSTOMER ===");
+            log.debug("Creating customer: {}", customerDTO.getEmail());
 
 
             if (customerRepository.existsByEmail(customerDTO.getEmail())) {
@@ -66,11 +66,11 @@ public class CustomerServiceIMPL implements CustomerService {
             customer.setDealerId(customerDTO.getDealerId());
 
             Customer savedCustomer = customerRepository.save(customer);
-            log.info("=== CREATE CUSTOMER SUCCESS ===");
+            log.debug("Customer created successfully");
             return convertToResponseDTO(savedCustomer);
 
         } catch (Exception e) {
-            log.error("!!! ERROR IN CREATE CUSTOMER !!!", e);
+            log.error("Error creating customer: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi server: " + e.getMessage());
         }
     }

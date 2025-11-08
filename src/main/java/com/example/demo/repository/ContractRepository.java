@@ -12,15 +12,13 @@ import java.util.Optional;
 @Repository
 public interface ContractRepository extends JpaRepository<Contract, Integer> {
 
-    Optional<Contract> findByContractNumber(String contractNumber);
-
+    List<Contract> findByCustomerId(Integer customerId);
+    List<Contract> findByDealerId(Integer dealerId);
     List<Contract> findByOrderId(Integer orderId);
-
-    List<Contract> findByVin(String vin);
-
-    @Query("SELECT c FROM Contract c WHERE c.signedDate BETWEEN :startDate AND :endDate")
-    List<Contract> findContractsBySignedDateRange(@Param("startDate") java.time.LocalDate startDate,
-                                                  @Param("endDate") java.time.LocalDate endDate);
-
-    boolean existsByContractNumber(String contractNumber);
+    @Query("SELECT c FROM Contract c JOIN c.customer cust WHERE cust.fullName LIKE %:customerName%")
+    List<Contract> findByCustomerNameContaining(@Param("customerName") String customerName);
+    @Query("SELECT c FROM Contract c JOIN c.customer cust WHERE c.dealerId = :dealerId AND cust.fullName LIKE %:customerName%")
+    List<Contract> findByDealerIdAndCustomerNameContaining(@Param("dealerId") Integer dealerId,
+                                                           @Param("customerName") String customerName);
+    boolean existsByIdAndDealerId(Integer id, Integer dealerId);
 }

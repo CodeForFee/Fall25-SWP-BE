@@ -5,10 +5,12 @@ import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderDetail;
+import com.example.demo.entity.Quote;
 import com.example.demo.entity.QuoteDetail;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.QuoteDetailRepository;
+import com.example.demo.repository.QuoteRepository;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
+    private final QuoteRepository quoteRepository;
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -36,28 +39,24 @@ public class OrderServiceImpl implements OrderService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public OrderResponseDTO getOrderById(Integer id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + id));
         return convertToResponseDTO(order);
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByCustomerId(Integer customerId) {
         return orderRepository.findByCustomerId(customerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByDealerId(Integer dealerId) {
         return orderRepository.findByDealerId(dealerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByUserId(Integer userId) {
         return orderRepository.findByUserId(userId).stream()
@@ -80,15 +79,24 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + orderDTO.getQuoteId());
         }
 
+
+        Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
+                .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
+
+        Integer customerId = orderDTO.getCustomerId() != null ? orderDTO.getCustomerId() : quote.getCustomerId();
+
         Order order = new Order();
         order.setQuoteId(orderDTO.getQuoteId());
-        order.setCustomerId(orderDTO.getCustomerId());
+        order.setCustomerId(customerId);
         order.setDealerId(orderDTO.getDealerId());
         order.setUserId(orderDTO.getUserId());
         order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
         order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
         order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
         order.setNotes(orderDTO.getNotes());
+        if (orderDTO.getPaymentPercentage() != null) {
+            order.setPaymentPercentage(orderDTO.getPaymentPercentage());
+        }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
@@ -119,12 +127,25 @@ public class OrderServiceImpl implements OrderService {
 
         order.setTotalAmount(totalAmount);
         order.setTotalDiscount(totalDiscount);
+        BigDecimal paidAmount = BigDecimal.ZERO;
+        if (orderDTO.getPaymentPercentage() != null && orderDTO.getPaymentPercentage() > 0) {
+            paidAmount = totalAmount.multiply(BigDecimal.valueOf(orderDTO.getPaymentPercentage()))
+                    .divide(BigDecimal.valueOf(100));
+        } else if (orderDTO.getPaidAmount() != null) {
+            paidAmount = orderDTO.getPaidAmount();
+        }
 
-        BigDecimal paidAmount = orderDTO.getPaidAmount() != null ? orderDTO.getPaidAmount() : BigDecimal.ZERO;
         BigDecimal remainingAmount = totalAmount.subtract(paidAmount);
 
         order.setPaidAmount(paidAmount);
         order.setRemainingAmount(remainingAmount);
+        if (paidAmount.compareTo(BigDecimal.ZERO) == 0) {
+            order.setPaymentStatus(Order.PaymentStatus.UNPAID);
+        } else if (paidAmount.compareTo(totalAmount) == 0) {
+            order.setPaymentStatus(Order.PaymentStatus.PAID);
+        } else {
+            order.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
+        }
 
         Order savedOrder = orderRepository.save(order);
         for (OrderDetail detail : orderDetails) {
@@ -207,6 +228,11 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.delete(order);
     }
 
+    @Override
+    public List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole) {
+        return List.of();
+    }
+
     private OrderResponseDTO convertToResponseDTO(Order order) {
         OrderResponseDTO dto = new OrderResponseDTO();
         dto.setId(order.getId());
@@ -222,6 +248,12 @@ public class OrderServiceImpl implements OrderService {
         dto.setStatus(order.getStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod().name());
         dto.setNotes(order.getNotes());
+        dto.setPaymentPercentage(order.getPaymentPercentage());
+        dto.setPaymentStatus(order.getPaymentStatus() != null ? order.getPaymentStatus().name() : null);
+        dto.setApprovalStatus(order.getApprovalStatus() != null ? order.getApprovalStatus().name() : null);
+        dto.setApprovedBy(order.getApprovedBy());
+        dto.setApprovedAt(order.getApprovedAt());
+        dto.setApprovalNotes(order.getApprovalNotes());
 
         List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
         List<OrderDetailResponseDTO> detailDTOs = details.stream()

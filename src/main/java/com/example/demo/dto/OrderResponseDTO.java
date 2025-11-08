@@ -1,5 +1,7 @@
 package com.example.demo.dto;
 
+
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -7,6 +9,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -21,13 +24,19 @@ public class OrderResponseDTO {
     private Integer userId;
     private LocalDate orderDate;
     private BigDecimal totalAmount;
+    private BigDecimal totalDiscount;
     private BigDecimal paidAmount;
     private BigDecimal remainingAmount;
     private String status;
     private String paymentMethod;
     private String notes;
-    private List<OrderDetailResponseDTO> orderDetails;
-    private BigDecimal totalDiscount;
+    private Integer paymentPercentage;
+    private String paymentStatus;
+    private String approvalStatus;
+    private Integer approvedBy;
+    private LocalDateTime approvedAt;
+    private String approvalNotes;
 
+    private List<OrderDetailResponseDTO> orderDetails;
 
 }

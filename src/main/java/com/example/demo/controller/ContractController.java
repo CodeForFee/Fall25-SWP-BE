@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.ContractDTO;
 import com.example.demo.dto.ContractResponseDTO;
+import com.example.demo.entity.Order;
 import com.example.demo.service.ContractService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -23,33 +24,33 @@ public class ContractController {
     private final ContractService contractService;
 
     @GetMapping
-    @Operation(summary = "Lấy tất cả hợp đồng")
+    @Operation(summary = "Lấy tất cả hợp đồng (Admin)")
     public ResponseEntity<List<ContractResponseDTO>> getAllContracts() {
         return ResponseEntity.ok(contractService.getAllContracts());
     }
 
-    @GetMapping("/{id}")
-    @Operation(summary = "Lấy hợp đồng theo ID")
-    public ResponseEntity<ContractResponseDTO> getContractById(@PathVariable Integer id) {
-        return ResponseEntity.ok(contractService.getContractById(id));
+    @GetMapping("/dealer/{dealerId}")
+    @Operation(summary = "Lấy hợp đồng theo dealer")
+    public ResponseEntity<List<ContractResponseDTO>> getContractsByDealer(@PathVariable Integer dealerId) {
+        return ResponseEntity.ok(contractService.getContractsByDealer(dealerId));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Tìm hợp đồng theo tên khách hàng")
+    public ResponseEntity<List<ContractResponseDTO>> searchContractsByCustomerName(
+            @RequestParam String customerName) {
+        return ResponseEntity.ok(contractService.searchContractsByCustomerName(customerName));
+    }
+
+    @GetMapping("/{contractId}/order")
+    @Operation(summary = "Lấy thông tin order của hợp đồng")
+    public ResponseEntity<Order> getOrderByContractId(@PathVariable Integer contractId) {
+        return ResponseEntity.ok(contractService.getOrderByContractId(contractId));
     }
 
     @PostMapping
     @Operation(summary = "Tạo hợp đồng mới")
     public ResponseEntity<ContractResponseDTO> createContract(@RequestBody ContractDTO contractDTO) {
         return ResponseEntity.ok(contractService.createContract(contractDTO));
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật hợp đồng")
-    public ResponseEntity<ContractResponseDTO> updateContract(@PathVariable Integer id, @RequestBody ContractDTO contractDTO) {
-        return ResponseEntity.ok(contractService.updateContract(id, contractDTO));
-    }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Xóa hợp đồng")
-    public ResponseEntity<String> deleteContract(@PathVariable Integer id) {
-        contractService.deleteContract(id);
-        return ResponseEntity.ok("Hợp đồng đã được xóa thành công");
     }
 }

@@ -31,3 +31,30 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Logs ###
+*.log
+logs/
+
+### OS Files ###
+.DS_Store
+Thumbs.db
+
+### Temporary files ###
+*.tmp
+*.temp
+*.bak
+
+### Environment files ###
+# .env
+# .env.local
+# .env.production
+
+### Database files ###
+*.db
+*.sqlite
+
+### Build artifacts ###
+out/
+dist/
+build/
