@@ -83,13 +83,16 @@ public class Quote {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
+    @JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JsonIgnore
     private Customer customer;
 
     @OneToMany(mappedBy = "quote", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<QuoteDetail> quoteDetails;
 
     @OneToOne(mappedBy = "quote", fetch = FetchType.LAZY)

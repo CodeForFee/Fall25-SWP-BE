@@ -31,7 +31,7 @@ public class DealerOrderWorkflowService {
     private final PaymentProcessingService paymentProcessingService;
     private final AuditLogService auditLogService;
 
-    @Transactional
+
     public OrderResponseDTO createOrderFromApprovedQuote(OrderDTO orderDTO, Integer staffId) {
         log.info("=== DEALER WORKFLOW - CREATE ORDER WITH PAYMENT - quoteId: {}, staffId: {}, paymentMethod: {}, paymentPercentage: {}%",
                 orderDTO.getQuoteId(), staffId, orderDTO.getPaymentMethod(), orderDTO.getPaymentPercentage());
@@ -159,16 +159,24 @@ public class DealerOrderWorkflowService {
         try {
             Customer customer = customerRepository.findById(quote.getCustomerId())
                     .orElseThrow(() -> new RuntimeException("Customer not found: " + quote.getCustomerId()));
-
-            // Cập nhật tổng chi tiêu của customer
-            if (order.getTotalAmount() != null) {
-                customer.addToTotalSpent(order.getTotalAmount());
-                customerRepository.save(customer);
-                log.info("Updated customer total spent - Customer: {}, Amount: {}", customer.getId(), order.getTotalAmount());
+            log.info("Before update - Customer ID: {}, TotalSpent: {}, TotalDebt: {}",
+                    customer.getId(), customer.getTotalSpent(), customer.getTotalDebt());
+            if (order.getPaidAmount() != null && order.getPaidAmount().compareTo(BigDecimal.ZERO) > 0) {
+                customer.addToTotalSpent(order.getPaidAmount());
+                log.info("Added to total spent: {}", order.getPaidAmount());
             }
+            if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
+                customer.addDebt(order.getRemainingAmount());
+                log.info("Added to total debt: {}", order.getRemainingAmount());
+            }
+
+            customerRepository.save(customer);
+
+            log.info("After update - Customer ID: {}, TotalSpent: {}, TotalDebt: {}, IsVIP: {}",
+                    customer.getId(), customer.getTotalSpent(), customer.getTotalDebt(), customer.getIsVip());
+
         } catch (Exception e) {
-            log.error("Error updating customer after order: {}", e.getMessage());
-            // Không throw exception để không ảnh hưởng đến luồng chính
+            log.error("Error updating customer after order: {}", e.getMessage(), e);
         }
     }
 
