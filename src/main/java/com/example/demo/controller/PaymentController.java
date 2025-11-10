@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -88,7 +89,7 @@ public class PaymentController {
 
     @SecurityRequirement(name = "")
     @GetMapping("/vnpay/return")
-    public ResponseEntity<?> handleVNPayReturn(HttpServletRequest request) {
+    public RedirectView handleVNPayReturn(HttpServletRequest request) {
         try {
             log.info("HANDLING VNPay RETURN CALLBACK");
 
@@ -115,14 +116,8 @@ public class PaymentController {
                 log.error("INVALID SIGNATURE FROM VNPay");
 
                 String redirectUrl = buildFailUrl(txnRef, "INVALID_SIGNATURE", null);
-
-                return ResponseEntity.ok(Map.of(
-                        "success", false,
-                        "status", "fail",
-                        "message", "Invalid signature - Payment verification failed",
-                        "redirectUrl", redirectUrl,
-                        "transactionId", txnRef
-                ));
+                log.info("Redirecting to fail URL: {}", redirectUrl);
+                return new RedirectView(redirectUrl);
             }
 
             log.info("VALID SIGNATURE - Processing payment...");
@@ -134,46 +129,23 @@ public class PaymentController {
                         payment.getOrderId(), payment.getAmount());
 
                 String redirectUrl = buildSuccessUrl(txnRef, payment.getOrderId());
-
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "status", "success",
-                        "message", "Thanh toán thành công",
-                        "redirectUrl", redirectUrl,
-                        "paymentId", payment.getId(),
-                        "orderId", payment.getOrderId(),
-                        "amount", payment.getAmount(),
-                        "transactionNo", payment.getVnpayTransactionNo(),
-                        "transactionId", txnRef
-                ));
+                log.info("Redirecting to success URL: {}", redirectUrl);
+                return new RedirectView(redirectUrl);
             } else {
                 log.warn("PAYMENT FAILED - Code: {}, Order: {}",
                         responseCode, payment.getOrderId());
 
                 String redirectUrl = buildFailUrl(txnRef, responseCode, payment.getOrderId());
-
-                return ResponseEntity.ok(Map.of(
-                        "success", false,
-                        "status", "fail",
-                        "message", "Thanh toán thất bại",
-                        "redirectUrl", redirectUrl,
-                        "errorCode", responseCode,
-                        "orderId", payment.getOrderId(),
-                        "transactionId", txnRef
-                ));
+                log.info("Redirecting to fail URL: {}", redirectUrl);
+                return new RedirectView(redirectUrl);
             }
 
         } catch (Exception e) {
             log.error("ERROR PROCESSING VNPay RETURN: {}", e.getMessage(), e);
 
             String redirectUrl = buildFailUrl(null, "PROCESSING_ERROR", null);
-
-            return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "status", "error",
-                    "message", "Lỗi xử lý thanh toán: " + e.getMessage(),
-                    "redirectUrl", redirectUrl
-            ));
+            log.info("Redirecting to fail URL (error): {}", redirectUrl);
+            return new RedirectView(redirectUrl);
         }
     }
 
