@@ -219,4 +219,76 @@ public class PaymentProcessingService {
         return orderTotal.multiply(BigDecimal.valueOf(paymentPercentage))
                 .divide(BigDecimal.valueOf(100));
     }
+    public Payment processCashPayment(PaymentRequestDTO paymentRequest) {
+        try {
+            log.info("Processing cash payment - Order: {}, Percentage: {}%",
+                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
+
+            Order order = orderRepository.findById(paymentRequest.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            // Tính toán số tiền thanh toán
+            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            // Tạo payment record với status COMPLETED
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .amount(paymentAmount)
+                    .paymentMethod(Payment.PaymentMethod.CASH)
+                    .paymentPercentage(paymentRequest.getPaymentPercentage())
+                    .status(Payment.Status.COMPLETED)
+                    .notes(paymentRequest.getPaymentNotes())
+                    .paymentDate(LocalDate.now())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            payment = paymentRepository.save(payment);
+            updateInventoryAfterSuccessfulPayment(payment);
+
+            log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
+                    payment.getId(), order.getId(), paymentAmount);
+
+            return payment;
+
+        } catch (Exception e) {
+            log.error("Error processing cash payment: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to process cash payment: " + e.getMessage(), e);
+        }
+    }
+
+
+    public Payment processBankTransferPayment(PaymentRequestDTO paymentRequest) {
+        try {
+            log.info("Processing bank transfer payment - Order: {}, Percentage: {}%",
+                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
+
+            Order order = orderRepository.findById(paymentRequest.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .amount(paymentAmount)
+                    .paymentMethod(Payment.PaymentMethod.TRANSFER)
+                    .paymentPercentage(paymentRequest.getPaymentPercentage())
+                    .status(Payment.Status.PENDING)
+                    .notes(paymentRequest.getPaymentNotes())
+                    .paymentDate(LocalDate.now())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            payment = paymentRepository.save(payment);
+
+            log.info("Bank transfer payment processed - ID: {}, Order: {}, Amount: {}, Status: PENDING",
+                    payment.getId(), order.getId(), paymentAmount);
+
+            return payment;
+
+        } catch (Exception e) {
+            log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
+        }
+    }
 }
