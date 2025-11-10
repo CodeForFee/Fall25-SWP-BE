@@ -10,13 +10,16 @@ import com.example.demo.service.VNPayService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.view.RedirectView;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @Slf4j
@@ -68,12 +71,12 @@ public class PaymentController {
     }
 
     /**
-     * VNPay callback endpoint - NO AUTHENTICATION REQUIRED
+     * VNPay callback endpoint - MUST RETURN HTML for redirect
      * VNPay sẽ gọi endpoint này sau khi user thanh toán
      */
     @SecurityRequirement(name = "")
     @GetMapping("/vnpay/return")
-    public RedirectView handleVNPayReturn(HttpServletRequest request) {
+    public void handleVNPayReturn(HttpServletRequest request, HttpServletResponse response) throws IOException {
         try {
             log.info("=== VNPay CALLBACK RECEIVED ===");
 
@@ -91,23 +94,24 @@ public class PaymentController {
             
             String txnRef = fields.get("vnp_TxnRef");
             String responseCode = fields.get("vnp_ResponseCode");
-            String transactionNo = fields.get("vnp_TransactionNo");
 
             log.info("Transaction Info - TxnRef: {}, ResponseCode: {}, Valid: {}", 
                     txnRef, responseCode, isValid);
 
+            String redirectUrl;
+
             // Nếu chữ ký không hợp lệ
             if (!isValid) {
                 log.error("INVALID SIGNATURE from VNPay");
-                String redirectUrl = buildRedirectUrl(
+                redirectUrl = buildRedirectUrl(
                     vnpayReturnUrlFail,
                     txnRef,
                     null,
                     "INVALID_SIGNATURE",
                     "Chữ ký không hợp lệ"
                 );
-                log.info("Redirecting to: {}", redirectUrl);
-                return new RedirectView(redirectUrl);
+                sendHtmlRedirect(response, redirectUrl);
+                return;
             }
 
             // Xử lý payment trong database
@@ -120,7 +124,7 @@ public class PaymentController {
                 log.info("✅ PAYMENT SUCCESS - Order: {}, Amount: {}", 
                         payment.getOrderId(), payment.getAmount());
 
-                String redirectUrl = buildRedirectUrl(
+                redirectUrl = buildRedirectUrl(
                     vnpayReturnUrlSuccess,
                     txnRef,
                     payment.getOrderId(),
@@ -129,14 +133,14 @@ public class PaymentController {
                 );
                 
                 log.info("✅ Redirecting to SUCCESS: {}", redirectUrl);
-                return new RedirectView(redirectUrl);
+                sendHtmlRedirect(response, redirectUrl);
                 
             } else {
                 // THANH TOÁN THẤT BẠI
                 log.warn("❌ PAYMENT FAILED - Code: {}, Order: {}", 
                         responseCode, payment.getOrderId());
 
-                String redirectUrl = buildRedirectUrl(
+                redirectUrl = buildRedirectUrl(
                     vnpayReturnUrlFail,
                     txnRef,
                     payment.getOrderId(),
@@ -145,7 +149,7 @@ public class PaymentController {
                 );
                 
                 log.info("❌ Redirecting to FAIL: {}", redirectUrl);
-                return new RedirectView(redirectUrl);
+                sendHtmlRedirect(response, redirectUrl);
             }
 
         } catch (Exception e) {
@@ -160,8 +164,79 @@ public class PaymentController {
             );
             
             log.info("❌ Redirecting to FAIL (exception): {}", redirectUrl);
-            return new RedirectView(redirectUrl);
+            sendHtmlRedirect(response, redirectUrl);
         }
+    }
+
+    /**
+     * Send HTML with JavaScript redirect
+     * Đây là cách chắc chắn nhất để redirect từ backend sang frontend
+     */
+    private void sendHtmlRedirect(HttpServletResponse response, String redirectUrl) throws IOException {
+        response.setContentType("text/html; charset=UTF-8");
+        response.setStatus(HttpServletResponse.SC_OK);
+        
+        String html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Đang chuyển hướng...</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                    }
+                    .container {
+                        text-align: center;
+                        padding: 40px;
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 20px;
+                        backdrop-filter: blur(10px);
+                    }
+                    .spinner {
+                        border: 4px solid rgba(255, 255, 255, 0.3);
+                        border-radius: 50%;
+                        border-top: 4px solid white;
+                        width: 50px;
+                        height: 50px;
+                        animation: spin 1s linear infinite;
+                        margin: 20px auto;
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    h2 { margin: 20px 0 10px 0; }
+                    p { opacity: 0.9; margin: 10px 0; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="spinner"></div>
+                    <h2>Đang xử lý kết quả thanh toán...</h2>
+                    <p>Vui lòng chờ trong giây lát</p>
+                    <p style="font-size: 12px; margin-top: 20px;">
+                        Nếu không tự động chuyển hướng, 
+                        <a href="%s" style="color: white; text-decoration: underline;">nhấn vào đây</a>
+                    </p>
+                </div>
+                <script>
+                    // Redirect ngay lập tức
+                    window.location.href = '%s';
+                </script>
+            </body>
+            </html>
+            """.formatted(redirectUrl, redirectUrl);
+        
+        response.getWriter().write(html);
+        response.getWriter().flush();
     }
 
     /**
@@ -170,9 +245,6 @@ public class PaymentController {
     private String buildRedirectUrl(String baseUrl, String txnRef, 
                                    Integer orderId, String errorCode, String message) {
         StringBuilder url = new StringBuilder(baseUrl);
-        
-        // URL đã có "?status=success" hoặc "?status=fail" rồi
-        // Nên chỉ cần append thêm parameters với "&"
         
         if (txnRef != null) {
             url.append("&transactionId=").append(txnRef);
@@ -187,13 +259,8 @@ public class PaymentController {
         }
         
         if (message != null) {
-            // Encode message để tránh lỗi với ký tự đặc biệt
-            try {
-                String encodedMessage = java.net.URLEncoder.encode(message, "UTF-8");
-                url.append("&message=").append(encodedMessage);
-            } catch (Exception e) {
-                log.error("Error encoding message", e);
-            }
+            String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
+            url.append("&message=").append(encodedMessage);
         }
         
         return url.toString();
