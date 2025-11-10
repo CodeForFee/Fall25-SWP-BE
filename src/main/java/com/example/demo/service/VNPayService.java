@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -100,20 +101,20 @@ public class VNPayService {
             long amount = payment.getAmount().multiply(new BigDecimal(100)).longValue();
             vnpParams.put("vnp_Amount", String.valueOf(amount));
             vnpParams.put("vnp_CurrCode", "VND");
-            vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());
+            vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());  
             vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId());
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             vnpParams.put("vnp_IpAddr", getRealClientIpAddress(request));
-            LocalDateTime nowUtc = LocalDateTime.now(UTC_ZONE);
-            String createDate = nowUtc.format(VNPAY_DATE_FORMATTER);
+            ZoneId vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh");
+            ZonedDateTime nowVietnam = ZonedDateTime.now(vietnamZone);
+            String createDate = nowVietnam.format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_CreateDate", createDate);
-            String expireDate = nowUtc.plusMinutes(15).format(VNPAY_DATE_FORMATTER);
+            String expireDate = nowVietnam.plusMinutes(15).format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_ExpireDate", expireDate);
 
-            log.info("VNPay Parameters: {}", vnpParams);
-            log.info("Create Date (UTC): {}, Expire Date (UTC): {}", createDate, expireDate);
+            log.info("VNPay Parameters - Create Date: {}, Expire Date: {}", createDate, expireDate);
 
             StringBuilder hashData = new StringBuilder();
             vnpParams.forEach((key, value) -> {
@@ -126,12 +127,10 @@ public class VNPayService {
             });
 
             String hashDataStr = hashData.toString();
-            log.info("Hash Data: {}", hashDataStr);
             String vnpSecureHash = hmacSHA512(vnpaySecretKey, hashDataStr);
-            log.info("Secure Hash: {}", vnpSecureHash);
             String finalUrl = vnpayUrl + "?" + hashDataStr + "&vnp_SecureHash=" + vnpSecureHash;
 
-            log.info("Final VNPay URL: {}", finalUrl);
+            log.info("Final VNPay URL created successfully");
             return finalUrl;
 
         } catch (Exception e) {

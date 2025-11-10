@@ -21,7 +21,10 @@ import javax.crypto.spec.SecretKeySpec;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -156,32 +159,33 @@ public class PaymentController {
     public ResponseEntity<?> getPaymentByTxnRef(@PathVariable String txnRef) {
         return ResponseEntity.ok(paymentProcessingService.getPaymentByTxnRef(txnRef));
     }
-    
+
 
     @GetMapping("/test/create-url-corrected")
     public ResponseEntity<?> testCreatePaymentUrlCorrected() {
         try {
-            log.info("Testing VNPay URL creation with CORRECTED parameters");
+            log.info("Testing VNPay URL creation with VIETNAM TIMEZONE");
 
             Map<String, String> testParams = new TreeMap<>();
             testParams.put("vnp_Version", "2.1.0");
             testParams.put("vnp_Command", "pay");
             testParams.put("vnp_TmnCode", vnpayTmnCode);
-            testParams.put("vnp_Amount", "1000000");
+            testParams.put("vnp_Amount", "1000000"); // 10,000 VND
             testParams.put("vnp_CurrCode", "VND");
             testParams.put("vnp_TxnRef", "TEST" + System.currentTimeMillis());
             testParams.put("vnp_OrderInfo", "Test payment corrected");
             testParams.put("vnp_OrderType", "other");
             testParams.put("vnp_Locale", "vn");
-            testParams.put("vnp_ReturnUrl", "http://localhost:8080/api/payments/vnpay/return"); // ✅ ĐÚNG URL
+            testParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             testParams.put("vnp_IpAddr", "127.0.0.1");
-            String createDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            ZoneId vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh");
+            ZonedDateTime nowVietnam = ZonedDateTime.now(vietnamZone);
+
+            String createDate = nowVietnam.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             testParams.put("vnp_CreateDate", createDate);
 
-            String expireDate = LocalDateTime.now().plusMinutes(15).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            String expireDate = nowVietnam.plusMinutes(15).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             testParams.put("vnp_ExpireDate", expireDate);
-
-            // Tạo hash data
             StringBuilder hashData = new StringBuilder();
             testParams.forEach((key, value) -> {
                 if (value != null && !value.isEmpty()) {
@@ -193,22 +197,20 @@ public class PaymentController {
             });
 
             String hashDataStr = hashData.toString();
-            log.info("CORRECTED Hash Data: {}", hashDataStr);
-
             String signature = hmacSHA512(vnpaySecretKey, hashDataStr);
-            log.info("CORRECTED Signature: {}", signature);
-
             String finalUrl = vnpayUrl + "?" + hashDataStr + "&vnp_SecureHash=" + signature;
+            log.info("Vietnam Time - Create: {}, Expire: {}", createDate, expireDate);
+            log.info("Current UTC Time: {}", LocalDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "URL created with CORRECTED parameters",
+                    "message", "URL created with VIETNAM TIMEZONE",
                     "testUrl", finalUrl,
-                    "checks", Map.of(
-                            "returnUrl", "Contains /vnpay/ - ✅",
-                            "expireDate", "14 digits - ✅",
-                            "createDate", "14 digits - ✅",
-                            "signature", "Generated - ✅"
+                    "timeInfo", Map.of(
+                            "vietnamCreateTime", createDate,
+                            "vietnamExpireTime", expireDate,
+                            "currentUTCTime", LocalDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                            "timezone", "Asia/Ho_Chi_Minh (UTC+7)"
                     )
             ));
 
@@ -231,5 +233,24 @@ public class PaymentController {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    @GetMapping("/test/timezone")
+    public ResponseEntity<?> testTimezone() {
+        ZoneId vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZoneId utcZone = ZoneId.of("UTC");
+
+        ZonedDateTime nowVietnam = ZonedDateTime.now(vietnamZone);
+        ZonedDateTime nowUTC = ZonedDateTime.now(utcZone);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+        Map<String, String> timeInfo = new LinkedHashMap<>();
+        timeInfo.put("Vietnam Time (UTC+7)", nowVietnam.format(formatter));
+        timeInfo.put("UTC Time", nowUTC.format(formatter));
+        timeInfo.put("System Time", LocalDateTime.now().format(formatter));
+        timeInfo.put("Timezone Difference", "Vietnam is 7 hours ahead of UTC");
+
+        return ResponseEntity.ok(timeInfo);
     }
 }
