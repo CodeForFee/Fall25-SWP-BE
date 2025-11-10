@@ -52,11 +52,9 @@ public class PaymentController {
     @Value("${vnpay.url}")
     private String vnpayUrl;
 
-    @Value("${vnpay.return-url.success:http://localhost:5173/payment-result?status=success}")
-    private String vnpayReturnUrlSuccess;
-
-    @Value("${vnpay.return-url.fail:http://localhost:5173/payment-result?status=fail}")
-    private String vnpayReturnUrlFail;
+    // SET MẶC ĐỊNH TRONG CODE - KHÔNG cần config
+    private final String vnpayReturnUrlSuccess = "http://localhost:5173/payment-result?status=success";
+    private final String vnpayReturnUrlFail = "http://localhost:5173/payment-result?status=fail";
 
     @PostMapping("/vnpay/create")
     public ResponseEntity<?> createVNPayPayment(
@@ -106,11 +104,17 @@ public class PaymentController {
 
             boolean isValid = vnPayService.validateResponse(fields);
 
+            String txnRef = fields.get("vnp_TxnRef");
+            String responseCode = fields.get("vnp_ResponseCode");
+
+            // Log URLs để debug
+            log.info("Success URL: {}", vnpayReturnUrlSuccess);
+            log.info("Fail URL: {}", vnpayReturnUrlFail);
+
             if (!isValid) {
                 log.error("INVALID SIGNATURE FROM VNPay");
 
-                String txnRef = fields.get("vnp_TxnRef");
-                String redirectUrl = vnpayReturnUrlFail + "&transactionId=" + txnRef + "&errorCode=INVALID_SIGNATURE";
+                String redirectUrl = buildFailUrl(txnRef, "INVALID_SIGNATURE", null);
 
                 return ResponseEntity.ok(Map.of(
                         "success", false,
@@ -123,16 +127,13 @@ public class PaymentController {
 
             log.info("VALID SIGNATURE - Processing payment...");
 
-            String responseCode = fields.get("vnp_ResponseCode");
-            String txnRef = fields.get("vnp_TxnRef");
-
             Payment payment = paymentProcessingService.processVNPayReturn(fields);
 
             if ("00".equals(responseCode)) {
                 log.info("PAYMENT SUCCESS - Order: {}, Amount: {}",
                         payment.getOrderId(), payment.getAmount());
 
-                String redirectUrl = vnpayReturnUrlSuccess + "&transactionId=" + txnRef + "&orderId=" + payment.getOrderId();
+                String redirectUrl = buildSuccessUrl(txnRef, payment.getOrderId());
 
                 return ResponseEntity.ok(Map.of(
                         "success", true,
@@ -149,7 +150,7 @@ public class PaymentController {
                 log.warn("PAYMENT FAILED - Code: {}, Order: {}",
                         responseCode, payment.getOrderId());
 
-                String redirectUrl = vnpayReturnUrlFail + "&transactionId=" + txnRef + "&errorCode=" + responseCode + "&orderId=" + payment.getOrderId();
+                String redirectUrl = buildFailUrl(txnRef, responseCode, payment.getOrderId());
 
                 return ResponseEntity.ok(Map.of(
                         "success", false,
@@ -165,7 +166,7 @@ public class PaymentController {
         } catch (Exception e) {
             log.error("ERROR PROCESSING VNPay RETURN: {}", e.getMessage(), e);
 
-            String redirectUrl = vnpayReturnUrlFail + "&error=PROCESSING_ERROR";
+            String redirectUrl = buildFailUrl(null, "PROCESSING_ERROR", null);
 
             return ResponseEntity.ok(Map.of(
                     "success", false,
@@ -174,6 +175,44 @@ public class PaymentController {
                     "redirectUrl", redirectUrl
             ));
         }
+    }
+
+    /**
+     * Build success URL với các tham số
+     */
+    private String buildSuccessUrl(String transactionId, Integer orderId) {
+        StringBuilder url = new StringBuilder(vnpayReturnUrlSuccess);
+
+        if (transactionId != null) {
+            url.append("&transactionId=").append(transactionId);
+        }
+
+        if (orderId != null) {
+            url.append("&orderId=").append(orderId);
+        }
+
+        return url.toString();
+    }
+
+    /**
+     * Build fail URL với các tham số
+     */
+    private String buildFailUrl(String transactionId, String errorCode, Integer orderId) {
+        StringBuilder url = new StringBuilder(vnpayReturnUrlFail);
+
+        if (transactionId != null) {
+            url.append("&transactionId=").append(transactionId);
+        }
+
+        if (errorCode != null) {
+            url.append("&errorCode=").append(errorCode);
+        }
+
+        if (orderId != null) {
+            url.append("&orderId=").append(orderId);
+        }
+
+        return url.toString();
     }
 
     @GetMapping("/order/{orderId}")
@@ -190,6 +229,9 @@ public class PaymentController {
         return ResponseEntity.ok(paymentProcessingService.getPaymentByTxnRef(txnRef));
     }
 
+    /**
+     * API để frontend kiểm tra trạng thái payment
+     */
     @GetMapping("/status/{txnRef}")
     public ResponseEntity<?> getPaymentStatus(@PathVariable String txnRef) {
         try {
@@ -223,7 +265,7 @@ public class PaymentController {
             testParams.put("vnp_Version", "2.1.0");
             testParams.put("vnp_Command", "pay");
             testParams.put("vnp_TmnCode", vnpayTmnCode);
-            testParams.put("vnp_Amount", "1000000"); // 10,000 VND
+            testParams.put("vnp_Amount", "1000000");
             testParams.put("vnp_CurrCode", "VND");
             testParams.put("vnp_TxnRef", "TEST" + System.currentTimeMillis());
             testParams.put("vnp_OrderInfo", "Test payment corrected");
@@ -293,7 +335,28 @@ public class PaymentController {
         return sb.toString();
     }
 
+    @GetMapping("/test/timezone")
+    public ResponseEntity<?> testTimezone() {
+        ZoneId vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZoneId utcZone = ZoneId.of("UTC");
 
+        ZonedDateTime nowVietnam = ZonedDateTime.now(vietnamZone);
+        ZonedDateTime nowUTC = ZonedDateTime.now(utcZone);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+        Map<String, String> timeInfo = new LinkedHashMap<>();
+        timeInfo.put("Vietnam Time (UTC+7)", nowVietnam.format(formatter));
+        timeInfo.put("UTC Time", nowUTC.format(formatter));
+        timeInfo.put("System Time", LocalDateTime.now().format(formatter));
+        timeInfo.put("Timezone Difference", "Vietnam is 7 hours ahead of UTC");
+
+        return ResponseEntity.ok(timeInfo);
+    }
+
+    /**
+     * Test endpoint để kiểm tra redirect URLs
+     */
     @GetMapping("/test/redirect-urls")
     public ResponseEntity<?> testRedirectUrls() {
         return ResponseEntity.ok(Map.of(
