@@ -31,7 +31,6 @@ public class PaymentProcessingService {
     private final QuoteDetailRepository quoteDetailRepository;
     private final AuditLogService auditLogService;
 
-
     public Payment processVNPayReturn(Map<String, String> params) {
         try {
             log.info("PROCESSING VNPay RETURN");
@@ -84,10 +83,8 @@ public class PaymentProcessingService {
         }
     }
 
-
     protected void updateInventoryAfterSuccessfulPayment(Payment payment) {
         try {
-            // 🔥 GIẢI PHÁP TỐI ƯU: Luôn lấy order từ repository bằng orderId
             Order order = orderRepository.findById(payment.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found: " + payment.getOrderId()));
 
@@ -113,7 +110,6 @@ public class PaymentProcessingService {
 
     private void transferInventoryFromFactoryToDealer(Order order) {
         try {
-            // Lấy quote details từ order
             List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(order.getQuoteId());
 
             if (quoteDetails.isEmpty()) {
@@ -121,7 +117,6 @@ public class PaymentProcessingService {
             }
 
             for (QuoteDetail detail : quoteDetails) {
-                // ✅ SỬ DỤNG PHƯƠNG THỨC CÓ SẴN TRONG InventoryService
                 inventoryService.transferFactoryToDealer(
                         order.getDealerId(),
                         detail.getVehicleId(),
@@ -154,14 +149,13 @@ public class PaymentProcessingService {
         }
     }
 
-    // Các methods khác giữ nguyên
-    public List<Payment> getPaymentsByOrder(Integer orderId) {
-        return paymentRepository.findByOrderId(orderId);
-    }
-
     public Payment getPaymentByTxnRef(String txnRef) {
         return paymentRepository.findByVnpayTxnRef(txnRef)
                 .orElseThrow(() -> new RuntimeException("Payment not found with TxnRef: " + txnRef));
+    }
+
+    public List<Payment> getPaymentsByOrder(Integer orderId) {
+        return paymentRepository.findByOrderId(orderId);
     }
 
     public BigDecimal getTotalPaidAmountByOrder(Integer orderId) {
@@ -177,15 +171,12 @@ public class PaymentProcessingService {
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found: " + paymentRequest.getOrderId()));
 
-            // Tính toán số tiền thanh toán
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
 
-            // 🔥 CẬP NHẬT: Xác định status dựa trên payment method
             Payment.Status paymentStatus = Payment.PaymentMethod.CASH.name().equals(paymentRequest.getPaymentMethod())
-                    ? Payment.Status.COMPLETED  // Tiền mặt: hoàn thành ngay
-                    : Payment.Status.PENDING;   // Chuyển khoản: chờ xử lý
+                    ? Payment.Status.COMPLETED
+                    : Payment.Status.PENDING;
 
-            // Tạo payment
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -200,7 +191,6 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            // 🔥 QUAN TRỌNG: Nếu là tiền mặt, cập nhật inventory ngay
             if (Payment.PaymentMethod.CASH.name().equals(paymentRequest.getPaymentMethod())) {
                 updateInventoryAfterSuccessfulPayment(payment);
             }
@@ -213,87 +203,6 @@ public class PaymentProcessingService {
         } catch (Exception e) {
             log.error("Error processing payment with percentage: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process payment: " + e.getMessage(), e);
-        }
-    }
-
-
-    public Payment processCashPayment(PaymentRequestDTO paymentRequest) {
-        try {
-            log.info("Processing cash payment - Order: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
-
-            Order order = orderRepository.findById(paymentRequest.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Order not found"));
-
-            // Tính toán số tiền thanh toán
-            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
-
-            // Tạo payment record với status COMPLETED
-            Payment payment = Payment.builder()
-                    .orderId(order.getId())
-                    .amount(paymentAmount)
-                    .paymentMethod(Payment.PaymentMethod.CASH)
-                    .paymentPercentage(paymentRequest.getPaymentPercentage())
-                    .status(Payment.Status.COMPLETED)
-                    .notes(paymentRequest.getPaymentNotes())
-                    .paymentDate(LocalDate.now())
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            payment = paymentRepository.save(payment);
-
-            // 🔥 CẬP NHẬT KHO NGAY (vì đã nhận tiền mặt)
-            updateInventoryAfterSuccessfulPayment(payment);
-
-            log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
-                    payment.getId(), order.getId(), paymentAmount);
-
-            return payment;
-
-        } catch (Exception e) {
-            log.error("Error processing cash payment: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process cash payment: " + e.getMessage(), e);
-        }
-    }
-
-
-    public Payment processBankTransferPayment(PaymentRequestDTO paymentRequest) {
-        try {
-            log.info("Processing bank transfer payment - Order: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
-
-            Order order = orderRepository.findById(paymentRequest.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Order not found"));
-
-            // Tính toán số tiền thanh toán
-            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
-
-            // Tạo payment record với status PENDING (chờ xác nhận chuyển khoản)
-            Payment payment = Payment.builder()
-                    .orderId(order.getId())
-                    .amount(paymentAmount)
-                    .paymentMethod(Payment.PaymentMethod.TRANSFER)
-                    .paymentPercentage(paymentRequest.getPaymentPercentage())
-                    .status(Payment.Status.PENDING)
-                    .notes(paymentRequest.getPaymentNotes())
-                    .paymentDate(LocalDate.now())
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            payment = paymentRepository.save(payment);
-
-            log.info("Bank transfer payment processed - ID: {}, Order: {}, Amount: {}, Status: PENDING",
-                    payment.getId(), order.getId(), paymentAmount);
-
-            // 🔥 KHÔNG cập nhật inventory ngay - chờ xác nhận chuyển khoản
-
-            return payment;
-
-        } catch (Exception e) {
-            log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
         }
     }
 

@@ -20,7 +20,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -35,18 +34,18 @@ public class VNPayService {
 
     @Value("${vnpay.url}")
     private String vnpayUrl;
-
     @Value("${vnpay.tmn-code}")
     private String vnpayTmnCode;
-
     @Value("${vnpay.secret-key}")
     private String vnpaySecretKey;
-
     @Value("${vnpay.return-url}")
     private String vnpayReturnUrl;
+    @Value("${vnpay.return-url.success:http://localhost:5173/payment-result?status=success}")
+    private String vnpayReturnUrlSuccess;
+    @Value("${vnpay.return-url.fail:http://localhost:5173/payment-result?status=fail}")
+    private String vnpayReturnUrlFail;
 
-    // Sử dụng múi giờ UTC
-    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
+    private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter VNPAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Transactional
@@ -61,7 +60,6 @@ public class VNPayService {
                 throw new RuntimeException("Order cannot process payment");
             }
 
-            // Lấy total amount từ order
             BigDecimal amount = order.getTotalAmount();
 
             Payment payment = Payment.createVNPayPayment(order, amount);
@@ -101,14 +99,13 @@ public class VNPayService {
             long amount = payment.getAmount().multiply(new BigDecimal(100)).longValue();
             vnpParams.put("vnp_Amount", String.valueOf(amount));
             vnpParams.put("vnp_CurrCode", "VND");
-            vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());  
+            vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());
             vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId());
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             vnpParams.put("vnp_IpAddr", getRealClientIpAddress(request));
-            ZoneId vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh");
-            ZonedDateTime nowVietnam = ZonedDateTime.now(vietnamZone);
+            ZonedDateTime nowVietnam = ZonedDateTime.now(VIETNAM_ZONE);
             String createDate = nowVietnam.format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_CreateDate", createDate);
             String expireDate = nowVietnam.plusMinutes(15).format(VNPAY_DATE_FORMATTER);
@@ -152,6 +149,7 @@ public class VNPayService {
     }
 
     private String getRealClientIpAddress(HttpServletRequest request) {
+        // Lấy IP thực của client
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
             return xForwardedFor.split(",")[0].trim();
@@ -217,25 +215,117 @@ public class VNPayService {
         }
     }
 
+    public Map<String, String> handleVNPayReturn(Map<String, String> params) {
+        try {
+            log.info("Handling VNPay return with params: {}", params);
+
+            boolean isValid = validateResponse(params);
+            String vnpResponseCode = params.get("vnp_ResponseCode");
+            String vnpTxnRef = params.get("vnp_TxnRef");
+
+            Map<String, String> result = new HashMap<>();
+
+            if (isValid && "00".equals(vnpResponseCode)) {
+                Payment payment = processVNPayReturn(params);
+                log.info("Payment successful, TxnRef: {}", vnpTxnRef);
+
+                result.put("status", "success");
+                result.put("redirectUrl", vnpayReturnUrlSuccess + "&transactionId=" + vnpTxnRef);
+                result.put("transactionId", vnpTxnRef);
+                result.put("message", "Payment successful");
+
+            } else {
+                // Payment failed
+                log.warn("Payment failed or invalid signature. Response code: {}", vnpResponseCode);
+
+                result.put("status", "fail");
+                result.put("redirectUrl", vnpayReturnUrlFail + "&transactionId=" + vnpTxnRef + "&errorCode=" + vnpResponseCode);
+                result.put("transactionId", vnpTxnRef);
+                result.put("errorCode", vnpResponseCode);
+                result.put("message", "Payment failed");
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error handling VNPay return: {}", e.getMessage(), e);
+
+            Map<String, String> result = new HashMap<>();
+            result.put("status", "error");
+            result.put("redirectUrl", vnpayReturnUrlFail + "&error=processing_error");
+            result.put("message", "Payment processing error: " + e.getMessage());
+            return result;
+        }
+    }
+
+
+    public Payment processVNPayReturn(Map<String, String> params) {
+        try {
+            log.info("PROCESSING VNPay RETURN");
+
+            if (!validateResponse(params)) {
+                throw new RuntimeException("Invalid signature");
+            }
+
+            String vnpTxnRef = params.get("vnp_TxnRef");
+            String vnpResponseCode = params.get("vnp_ResponseCode");
+            String vnpTransactionNo = params.get("vnp_TransactionNo");
+
+            log.info("Processing payment: TxnRef={}, ResponseCode={}", vnpTxnRef, vnpResponseCode);
+
+            Payment payment = paymentRepository.findByVnpayTxnRef(vnpTxnRef)
+                    .orElseThrow(() -> new RuntimeException("Payment not found: " + vnpTxnRef));
+
+            payment.setVnpayTransactionNo(vnpTransactionNo);
+            payment.setVnpayBankCode(params.get("vnp_BankCode"));
+            payment.setVnpayCardType(params.get("vnp_CardType"));
+            payment.setVnpayResponseCode(vnpResponseCode);
+
+            String vnpPayDate = params.get("vnp_PayDate");
+            if (vnpPayDate != null) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+                payment.setVnpayPayDate(LocalDateTime.parse(vnpPayDate, formatter));
+            }
+
+            if ("00".equals(vnpResponseCode)) {
+                payment.markAsCompleted(vnpTransactionNo);
+                payment.setNotes("Payment successful via VNPay");
+                log.info("Payment completed: {}", payment.getId());
+            } else {
+                payment.markAsFailed();
+                payment.setNotes("Payment failed. Error code: " + vnpResponseCode);
+                log.warn("Payment failed: {}", vnpResponseCode);
+            }
+
+            payment = paymentRepository.save(payment);
+            log.info("PROCESSING COMPLETED");
+            return payment;
+
+        } catch (Exception e) {
+            log.error("ERROR PROCESSING PAYMENT: {}", e.getMessage(), e);
+            throw new RuntimeException("Payment processing error: " + e.getMessage(), e);
+        }
+    }
+
     public String testCreatePaymentUrl() {
         try {
             Map<String, String> testParams = new TreeMap<>();
             testParams.put("vnp_Version", "2.1.0");
             testParams.put("vnp_Command", "pay");
             testParams.put("vnp_TmnCode", vnpayTmnCode);
-            testParams.put("vnp_Amount", "10000000");
+            testParams.put("vnp_Amount", "1000000");
             testParams.put("vnp_CurrCode", "VND");
-            testParams.put("vnp_TxnRef", "TEST123456");
+            testParams.put("vnp_TxnRef", "TEST" + System.currentTimeMillis());
             testParams.put("vnp_OrderInfo", "Test payment");
             testParams.put("vnp_OrderType", "other");
             testParams.put("vnp_Locale", "vn");
-            testParams.put("vnp_ReturnUrl", vnpayReturnUrl);
+            testParams.put("vnp_ReturnUrl", vnpayReturnUrl); // VẪN DÙNG RETURN URL CŨ
             testParams.put("vnp_IpAddr", "127.0.0.1");
 
-            // Sử dụng UTC time cho test
-            LocalDateTime nowUtc = LocalDateTime.now(UTC_ZONE);
-            testParams.put("vnp_CreateDate", nowUtc.format(VNPAY_DATE_FORMATTER));
-            testParams.put("vnp_ExpireDate", nowUtc.plusMinutes(15).format(VNPAY_DATE_FORMATTER));
+            // Sử dụng múi giờ Việt Nam
+            ZonedDateTime nowVietnam = ZonedDateTime.now(VIETNAM_ZONE);
+            testParams.put("vnp_CreateDate", nowVietnam.format(VNPAY_DATE_FORMATTER));
+            testParams.put("vnp_ExpireDate", nowVietnam.plusMinutes(15).format(VNPAY_DATE_FORMATTER));
 
             StringBuilder hashData = new StringBuilder();
             testParams.forEach((key, value) -> {
@@ -265,8 +355,9 @@ public class VNPayService {
 
     public Map<String, String> getCurrentTimeInfo() {
         Map<String, String> timeInfo = new HashMap<>();
-        timeInfo.put("UTC Time", LocalDateTime.now(UTC_ZONE).format(VNPAY_DATE_FORMATTER));
-        timeInfo.put("Local Time", LocalDateTime.now().format(VNPAY_DATE_FORMATTER));
+        timeInfo.put("Vietnam Time", ZonedDateTime.now(VIETNAM_ZONE).format(VNPAY_DATE_FORMATTER));
+        timeInfo.put("UTC Time", LocalDateTime.now(ZoneId.of("UTC")).format(VNPAY_DATE_FORMATTER));
+        timeInfo.put("System Time", LocalDateTime.now().format(VNPAY_DATE_FORMATTER));
         timeInfo.put("System Timezone", ZoneId.systemDefault().toString());
         return timeInfo;
     }
