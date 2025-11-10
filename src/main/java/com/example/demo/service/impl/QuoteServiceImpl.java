@@ -264,23 +264,17 @@ public class QuoteServiceImpl implements QuoteService {
         QuoteResponseDTO dto = new QuoteResponseDTO();
         dto.setId(quote.getId());
         dto.setCustomerId(quote.getCustomerId());
-        dto.setUserId(quote.getUserId()); // 🔥 CÓ THỂ NULL
+        dto.setUserId(quote.getUserId());
         dto.setCreatedDate(quote.getCreatedDate());
         dto.setTotalAmount(quote.getTotalAmount());
         dto.setStatus(quote.getStatus().name());
         dto.setApprovalStatus(quote.getApprovalStatus().name());
         dto.setValidUntil(quote.getValidUntil());
-        if (quote.getApprovedBy() != null) {
-            dto.setApprovedBy(quote.getApprovedBy());
-        }
-        if (quote.getApprovedAt() != null) {
-            dto.setApprovedAt(quote.getApprovedAt());
-        }
-        if (quote.getApprovalNotes() != null) {
-            dto.setApprovalNotes(quote.getApprovalNotes());
-        }
 
-        // 🔥 QUAN TRỌNG: Sử dụng method mới để chỉ lấy UNIQUE VEHICLEID
+        dto.setApprovedBy(quote.getApprovedBy());
+        dto.setApprovedAt(quote.getApprovedAt());
+        dto.setApprovalNotes(quote.getApprovalNotes());
+
         List<QuoteDetail> uniqueDetails = quoteDetailRepository.findUniqueByQuoteId(quote.getId());
         List<QuoteDetailResponseDTO> detailDTOs = uniqueDetails.stream()
                 .map(this::convertToDetailResponseDTO)

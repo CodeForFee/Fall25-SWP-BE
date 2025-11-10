@@ -41,12 +41,10 @@ public class QuoteDealerManagerService {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
 
-        // 🔥 CHỈ KIỂM TRA: Manager cùng dealer duyệt quote của staff
         if (!quote.canBeApprovedByDealerManager(manager)) {
             throw new RuntimeException("Manager can only approve quotes from staff in the same dealer");
         }
 
-        // 🔥 KIỂM TRA KHO DEALER
         boolean hasSufficientInventory = checkDealerInventoryForQuote(quoteId, quote.getDealerId());
 
         if (!hasSufficientInventory) {
@@ -56,7 +54,6 @@ public class QuoteDealerManagerService {
             throw new RuntimeException("Không thể duyệt quote: Kho đại lý không đủ mẫu xe đang được đặt");
         }
 
-        // 🔥 TÍNH TOÁN VÀ DUYỆT QUOTE
         var calculationResult = quoteCalculationService.calculateQuoteTotal(quoteId);
 
         if (calculationResult.qualifiesForVip() && !quote.getCustomer().getIsVip()) {
@@ -67,7 +64,7 @@ public class QuoteDealerManagerService {
 
         quote.setApprovalStatus(Quote.QuoteApprovalStatus.APPROVED);
         quote.setStatus(Quote.QuoteStatus.ACCEPTED);
-        quote.setCurrentApproverRole(null); // 🔥 HOÀN THÀNH PHÊ DUYỆT
+        quote.setCurrentApproverRole(null);
         quote.setApprovedBy(managerId);
         quote.setApprovedAt(LocalDateTime.now());
         quote.setApprovalNotes(notes);
