@@ -19,6 +19,8 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -41,6 +43,10 @@ public class VNPayService {
 
     @Value("${vnpay.return-url}")
     private String vnpayReturnUrl;
+
+    // Sử dụng múi giờ UTC
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
+    private static final DateTimeFormatter VNPAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Transactional
     public VNPayPaymentResponseDTO createPayment(VNPayPaymentRequestDTO paymentRequest, HttpServletRequest request) {
@@ -95,20 +101,20 @@ public class VNPayService {
             vnpParams.put("vnp_Amount", String.valueOf(amount));
             vnpParams.put("vnp_CurrCode", "VND");
             vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());
-
             vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId());
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             vnpParams.put("vnp_IpAddr", getRealClientIpAddress(request));
-
-            String createDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            LocalDateTime nowUtc = LocalDateTime.now(UTC_ZONE);
+            String createDate = nowUtc.format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_CreateDate", createDate);
-
-            String expireDate = LocalDateTime.now().plusMinutes(15).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            String expireDate = nowUtc.plusMinutes(15).format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_ExpireDate", expireDate);
 
             log.info("VNPay Parameters: {}", vnpParams);
+            log.info("Create Date (UTC): {}, Expire Date (UTC): {}", createDate, expireDate);
+
             StringBuilder hashData = new StringBuilder();
             vnpParams.forEach((key, value) -> {
                 if (value != null && !value.isEmpty()) {
@@ -134,7 +140,6 @@ public class VNPayService {
         }
     }
 
-
     private String hmacSHA512(String key, String data) throws Exception {
         Mac hmac = Mac.getInstance("HmacSHA512");
         SecretKeySpec secretKeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
@@ -148,8 +153,17 @@ public class VNPayService {
     }
 
     private String getRealClientIpAddress(HttpServletRequest request) {
-        // Tạm thời trả về 127.0.0.1 để test
-        return "127.0.0.1";
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty() && !"unknown".equalsIgnoreCase(xRealIp)) {
+            return xRealIp;
+        }
+
+        return request.getRemoteAddr();
     }
 
     public boolean validateResponse(Map<String, String> params) {
@@ -209,17 +223,20 @@ public class VNPayService {
             Map<String, String> testParams = new TreeMap<>();
             testParams.put("vnp_Version", "2.1.0");
             testParams.put("vnp_Command", "pay");
-            testParams.put("vnp_TmnCode", "2E1QAK9N");
+            testParams.put("vnp_TmnCode", vnpayTmnCode);
             testParams.put("vnp_Amount", "10000000");
             testParams.put("vnp_CurrCode", "VND");
             testParams.put("vnp_TxnRef", "TEST123456");
             testParams.put("vnp_OrderInfo", "Test payment");
             testParams.put("vnp_OrderType", "other");
             testParams.put("vnp_Locale", "vn");
-            testParams.put("vnp_ReturnUrl", "http://localhost:8080/api/payments/return");
+            testParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             testParams.put("vnp_IpAddr", "127.0.0.1");
-            testParams.put("vnp_CreateDate", "20251104150000");
-            testParams.put("vnp_ExpireDate", "2025110811500");
+
+            // Sử dụng UTC time cho test
+            LocalDateTime nowUtc = LocalDateTime.now(UTC_ZONE);
+            testParams.put("vnp_CreateDate", nowUtc.format(VNPAY_DATE_FORMATTER));
+            testParams.put("vnp_ExpireDate", nowUtc.plusMinutes(15).format(VNPAY_DATE_FORMATTER));
 
             StringBuilder hashData = new StringBuilder();
             testParams.forEach((key, value) -> {
@@ -234,17 +251,24 @@ public class VNPayService {
             String hashDataStr = hashData.toString();
             log.info("Test Hash Data: {}", hashDataStr);
 
-            String testSecretKey = "SSV6W78GLQ48H28KQCB89XZI4XVJS7Y9";
-            String signature = hmacSHA512(testSecretKey, hashDataStr);
+            String signature = hmacSHA512(vnpaySecretKey, hashDataStr);
 
             log.info("Test Signature: {}", signature);
 
-            String finalUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?" + hashDataStr + "&vnp_SecureHash=" + signature;
+            String finalUrl = vnpayUrl + "?" + hashDataStr + "&vnp_SecureHash=" + signature;
 
             return "Test URL: " + finalUrl;
 
         } catch (Exception e) {
             return "Test Error: " + e.getMessage();
         }
+    }
+
+    public Map<String, String> getCurrentTimeInfo() {
+        Map<String, String> timeInfo = new HashMap<>();
+        timeInfo.put("UTC Time", LocalDateTime.now(UTC_ZONE).format(VNPAY_DATE_FORMATTER));
+        timeInfo.put("Local Time", LocalDateTime.now().format(VNPAY_DATE_FORMATTER));
+        timeInfo.put("System Timezone", ZoneId.systemDefault().toString());
+        return timeInfo;
     }
 }
