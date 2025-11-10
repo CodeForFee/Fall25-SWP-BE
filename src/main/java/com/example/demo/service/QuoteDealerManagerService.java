@@ -33,7 +33,7 @@ public class QuoteDealerManagerService {
     /**
      * 🔥 MANAGER DUYỆT QUOTE CỦA STAFF CÙNG DEALER
      */
-    @Transactional
+
     public void approveQuoteByManager(Integer quoteId, Integer managerId, String notes) {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new RuntimeException("Manager not found: " + managerId));
@@ -88,7 +88,7 @@ public class QuoteDealerManagerService {
     /**
      * 🔥 MANAGER TỪ CHỐI QUOTE CỦA STAFF CÙNG DEALER
      */
-    @Transactional
+
     public void rejectQuoteByManager(Integer quoteId, Integer managerId, String reason) {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new RuntimeException("Manager not found: " + managerId));

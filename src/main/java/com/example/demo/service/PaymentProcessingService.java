@@ -31,7 +31,7 @@ public class PaymentProcessingService {
     private final QuoteDetailRepository quoteDetailRepository;
     private final AuditLogService auditLogService;
 
-    @Transactional
+
     public Payment processVNPayReturn(Map<String, String> params) {
         try {
             log.info("PROCESSING VNPay RETURN");
@@ -84,12 +84,16 @@ public class PaymentProcessingService {
         }
     }
 
-    @Transactional
+
     protected void updateInventoryAfterSuccessfulPayment(Payment payment) {
         try {
-            log.info("Updating inventory after successful payment for order: {}", payment.getOrder().getId());
+            // 🔥 GIẢI PHÁP TỐI ƯU: Luôn lấy order từ repository bằng orderId
+            Order order = orderRepository.findById(payment.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found: " + payment.getOrderId()));
 
-            Order order = payment.getOrder();
+            log.info("Updating inventory after successful payment - Payment: {}, Order: {}, Amount: {}",
+                    payment.getId(), order.getId(), payment.getAmount());
+
             transferInventoryFromFactoryToDealer(order);
             updateOrderStatusAfterPayment(order);
 
@@ -212,7 +216,7 @@ public class PaymentProcessingService {
         }
     }
 
-    @Transactional
+
     public Payment processCashPayment(PaymentRequestDTO paymentRequest) {
         try {
             log.info("Processing cash payment - Order: {}, Percentage: {}%",
@@ -253,7 +257,7 @@ public class PaymentProcessingService {
         }
     }
 
-    @Transactional
+
     public Payment processBankTransferPayment(PaymentRequestDTO paymentRequest) {
         try {
             log.info("Processing bank transfer payment - Order: {}, Percentage: {}%",

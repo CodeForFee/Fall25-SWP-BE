@@ -50,11 +50,13 @@ public class User {
 
     // Liên kết One-to-Many với Promotion
     @OneToMany(mappedBy = "createdBy", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Promotion> promotions;
 
     // Liên kết Many-to-One
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dealerId", referencedColumnName = "dealerId", insertable = false, updatable = false)
+    @JsonIgnore
     private Dealer dealer;
 
     // 🔥 THÊM: Liên kết One-to-Many với Order
