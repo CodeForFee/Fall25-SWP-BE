@@ -13,6 +13,7 @@ import com.example.demo.repository.QuoteDetailRepository;
 import com.example.demo.repository.QuoteRepository;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -280,12 +281,17 @@ public class OrderServiceImpl implements OrderService {
         dto.setApprovedBy(order.getApprovedBy());
         dto.setApprovedAt(order.getApprovedAt());
         dto.setApprovalNotes(order.getApprovalNotes());
-
-        List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
-        List<OrderDetailResponseDTO> detailDTOs = details.stream()
-                .map(this::convertToDetailResponseDTO)
-                .collect(Collectors.toList());
-        dto.setOrderDetails(detailDTOs);
+        
+        try {
+            List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
+            List<OrderDetailResponseDTO> detailDTOs = details.stream()
+                    .map(this::convertToDetailResponseDTO)
+                    .collect(Collectors.toList());
+            dto.setOrderDetails(detailDTOs);
+        } catch (Exception e) {
+            log.warn("Could not fetch orderDetails for order {}: {}", order.getId(), e.getMessage());
+            dto.setOrderDetails(new ArrayList<>());
+        }
 
         return dto;
     }
