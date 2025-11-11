@@ -3,12 +3,15 @@ package com.example.demo.service;
 import com.example.demo.dto.TestDriveRequestDTO;
 import com.example.demo.entity.Dealer; 
 import com.example.demo.entity.TestDriveRequest;
+import com.example.demo.entity.TestDriveRequest.TestDriveStatus;
 import com.example.demo.repository.DealerRepository; 
 import com.example.demo.repository.TestDriveRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -34,17 +37,44 @@ public class TestDriveService {
         newRequest.setCustomerEmail(dto.getCustomerEmail());
         newRequest.setPhoneNumber(dto.getPhoneNumber());
         newRequest.setCarModel(dto.getCarModel());
+        newRequest.setDealer(dealer);
         newRequest.setDate(dto.getDate());
         newRequest.setTime(dto.getTime());
-        newRequest.setDealer(dealer);
+        newRequest.setNote(dto.getNote());
+        newRequest.setStatus(TestDriveStatus.PENDING);
         
-        TestDriveRequest savedRequest = testDriveRepository.save(newRequest);
-        sendConfirmationEmailToCustomer(savedRequest);
-        return savedRequest;
+        return testDriveRepository.save(newRequest);
+    }
+
+    public List<TestDriveRequest> findByDealerIdAndStatus(Integer dealerId) {
+        return testDriveRepository.findByDealerIdAndStatus(dealerId, TestDriveStatus.PENDING);
     }
 
     public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) {
-        return testDriveRepository.findByDealerId(dealerId); 
+        return testDriveRepository.findByDealerId(dealerId);
+    }
+
+    /**
+     * Nhân viên gọi hàm này để XÁC NHẬN lịch hẹn.
+     */
+    public TestDriveRequest confirmTestDrive(Long requestId) {
+        // Tìm đơn
+        TestDriveRequest request = testDriveRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn với ID: " + requestId));
+
+        // Kiểm tra trạng thái
+        if (request.getStatus() != TestDriveStatus.PENDING) {
+            throw new RuntimeException("Đơn này đã được xử lý (không ở trạng thái PENDING).");
+        }
+
+        // Cập nhật trạng thái
+        request.setStatus(TestDriveStatus.CONFIRMED);
+        TestDriveRequest savedRequest = testDriveRepository.save(request);
+
+        // Gửi email XÁC NHẬN THÀNH CÔNG
+        sendConfirmationEmailToCustomer(savedRequest);
+
+        return savedRequest;
     }
 
     private void sendConfirmationEmailToCustomer(TestDriveRequest request) {
@@ -54,8 +84,8 @@ public class TestDriveService {
         String PhoneNumber = request.getPhoneNumber();
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
-        String date = request.getDate();
-        String time = request.getTime();
+        LocalDate date = request.getDate();
+        LocalTime time = request.getTime();
         String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
@@ -72,7 +102,57 @@ public class TestDriveService {
                       "Trân trọng,\n" +
                       "Đội ngũ " + dealerName;
 
-        // Tạo Mailbody DTO (giống như cách bạn làm ở ForgotPassword)
+        Mailbody mailbody = Mailbody.builder()
+                .to(customerEmail)
+                .subject(subject)
+                .text(body)
+                .build();
+
+        emailService.sendSimpleMessage(mailbody);
+    }
+
+
+    /**
+     * Nhân viên gọi hàm này để TỪ CHỐI lịch hẹn.
+     */
+    public TestDriveRequest rejectTestDrive(Long requestId, String reason) { // Thêm lý do từ chối
+        // Tìm đơn
+        TestDriveRequest request = testDriveRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn với ID: " + requestId));
+
+        // Kiểm tra trạng thái
+        if (request.getStatus() != TestDriveStatus.PENDING) {
+            throw new RuntimeException("Đơn này đã được xử lý (không ở trạng thái PENDING).");
+        }
+
+        // Cập nhật trạng thái
+        request.setStatus(TestDriveStatus.REJECTED);
+        TestDriveRequest savedRequest = testDriveRepository.save(request);
+
+        // Gửi email THÔNG BÁO TỪ CHỐI
+        sendRejectionEmailToCustomer(savedRequest, reason);
+
+        return savedRequest;
+    }
+    
+    private void sendRejectionEmailToCustomer(TestDriveRequest request, String reason) {
+        String customerEmail = request.getCustomerEmail();
+        String customerName = request.getCustomerName();
+        String dealerName = request.getDealer().getName();
+        LocalDate date = request.getDate();
+        LocalTime time = request.getTime();
+        String carModel = request.getCarModel();
+
+        String subject = "Thông báo về lịch hẹn lái thử tại " + dealerName;
+        String body = "Chào " + customerName + ",\n\n" +
+                "Chúng tôi rất tiếc phải thông báo rằng lịch hẹn lái thử của bạn cho xe " + carModel + 
+                " vào lúc " + time + ", ngày " + date + " tại " + dealerName + " không thể được xác nhận.\n\n" +
+                "Lý do: " + reason + "\n\n" +
+                "Xin vui lòng liên hệ lại với chúng tôi hoặc đặt một lịch hẹn khác vào thời điểm thuận tiện hơn.\n\n" +
+                "Chúng tôi xin lỗi vì sự bất tiện này.\n" +
+                "Trân trọng,\n" +
+                "Đội ngũ " + dealerName;
+
         Mailbody mailbody = Mailbody.builder()
                 .to(customerEmail)
                 .subject(subject)

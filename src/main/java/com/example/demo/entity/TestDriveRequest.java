@@ -1,6 +1,10 @@
 package com.example.demo.entity;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -18,16 +22,25 @@ public class TestDriveRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long requestId;
 
-    private String CustomerName;
-    private String CustomerEmail;
-    private String PhoneNumber;
-    private String CarModel;
-    private String Date;
-    private String Time;
+    private String customerName;
+    private String customerEmail;
+    private String phoneNumber;
+    private String carModel;
+    private LocalDate date;
+    private LocalTime time;
+    private String note;
     
+    @Enumerated(EnumType.STRING)
+    private TestDriveStatus status;
     @ManyToOne
     @JoinColumn(name = "dealer") // Tên cột khóa ngoại trong CSDL
     private Dealer dealer;
+
+    public enum TestDriveStatus {
+        PENDING,   
+        CONFIRMED,  
+        REJECTED, 
+    }
 }
