@@ -22,7 +22,7 @@ public class TestDriveRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long requestId;
+    private Long id;
 
     private String customerName;
     private String customerEmail;
