@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.RejectRequestDTO;
 import com.example.demo.dto.TestDriveRequestDTO;
 import com.example.demo.entity.TestDriveRequest;
 import com.example.demo.service.TestDriveService;
@@ -41,5 +42,20 @@ public class TestDriveController {
         
         List<TestDriveRequest> danhSach = testDriveService.getDanhSachLichLaiThu(dealerId);
         return ResponseEntity.ok(danhSach); 
+    }
+
+    @PutMapping("/{requestId}/confirm")
+    public ResponseEntity<TestDriveRequest> confirmRequest(@PathVariable Long requestId) {
+        TestDriveRequest confirmedRequest = testDriveService.confirmTestDrive(requestId);
+        return ResponseEntity.ok(confirmedRequest);
+    }
+
+    @PutMapping("/{requestId}/reject")
+    public ResponseEntity<TestDriveRequest> rejectRequest(@PathVariable Long requestId, @RequestBody RejectRequestDTO rejectDTO) { 
+
+        String reason = rejectDTO.getReason();
+        TestDriveRequest rejectedRequest = testDriveService.rejectTestDrive(requestId, reason);
+
+        return ResponseEntity.ok(rejectedRequest);
     }
 }

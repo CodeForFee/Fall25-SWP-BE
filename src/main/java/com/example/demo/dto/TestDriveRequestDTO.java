@@ -1,15 +1,22 @@
 package com.example.demo.dto;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter
 @Setter
+@Getter
 public class TestDriveRequestDTO {
 
-    private String CustomerName;
-    private String CustomerEmail;
-    private String PhoneNumber;
-    private Integer dealerId; 
-    private String Time;
+    private String customerName;
+    private String customerEmail;
+    private String phoneNumber;
+    private String carModel;
+    private Integer dealerId;
+    private LocalDate date;
+    private LocalTime time;
+    private String note;
+    private String status;
 }
