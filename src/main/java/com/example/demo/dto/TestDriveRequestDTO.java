@@ -18,5 +18,4 @@ public class TestDriveRequestDTO {
     private LocalDate date;
     private LocalTime time;
     private String note;
-    private String status;
 }
