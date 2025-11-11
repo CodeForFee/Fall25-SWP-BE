@@ -41,13 +41,14 @@ public class QuoteApprovalService {
         log.info("Quote {} submitted for EVM approval by user {}", quoteId, quote.getUserId());
     }
 
+
     public void approveQuoteByEVM(Integer quoteId, Integer evmUserId, String notes) {
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> new RuntimeException("Quote not found: " + quoteId));
-
-        if (!quote.canBeApprovedByEVM()) {
+        if (!canBeApprovedByEVM(quote)) {
             throw new RuntimeException("Quote cannot be approved by EVM. Current approval status: " + quote.getApprovalStatus());
         }
+
         boolean hasSufficientInventory = checkFactoryInventoryForQuote(quoteId);
 
         if (!hasSufficientInventory) {
@@ -107,5 +108,10 @@ public class QuoteApprovalService {
 
     public List<Quote> getApprovedQuotesReadyForOrder() {
         return quoteRepository.findApprovedQuotesReadyForOrder();
+    }
+
+    private boolean canBeApprovedByEVM(Quote quote) {
+        return quote.getApprovalStatus() == Quote.QuoteApprovalStatus.PENDING_EVM_APPROVAL ||
+                quote.getApprovalStatus() == Quote.QuoteApprovalStatus.INSUFFICIENT_INVENTORY;
     }
 }

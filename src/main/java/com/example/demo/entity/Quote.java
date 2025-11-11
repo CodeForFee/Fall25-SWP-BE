@@ -25,10 +25,10 @@ public class Quote {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "customer_id", nullable = false)
+    @Column(name = "customer_id", nullable = true)
     private Integer customerId;
 
-    // 🔥 SỬA: user_id có thể null để xử lý luồng manager
+
     @Column(name = "user_id", nullable = true)
     private Integer userId;
 
@@ -149,10 +149,6 @@ public class Quote {
                 this.userId != null && this.userId.equals(currentUser.getUserId()) && // Staff tạo order từ quote của chính mình
                 this.approvalStatus == QuoteApprovalStatus.APPROVED &&
                 this.status == QuoteStatus.ACCEPTED;
-    }
-
-    public boolean canBeApprovedByEVM() {
-        return this.approvalStatus == QuoteApprovalStatus.PENDING_EVM_APPROVAL;
     }
 
     public boolean canCreateOrder() {
