@@ -93,8 +93,6 @@ public class SecurityConfig {
                         // Public APIs
                         .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**").permitAll()
                         // OPTIONS request cho preflight
-                        .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/test-drive/schedule-list").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
