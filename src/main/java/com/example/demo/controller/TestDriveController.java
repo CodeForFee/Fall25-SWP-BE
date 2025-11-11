@@ -44,13 +44,13 @@ public class TestDriveController {
         return ResponseEntity.ok(danhSach); 
     }
 
-    @PutMapping("/{requestId}/confirm")
+    @PostMapping("/{requestId}/confirm")
     public ResponseEntity<TestDriveRequest> confirmRequest(@PathVariable Long requestId) {
         TestDriveRequest confirmedRequest = testDriveService.confirmTestDrive(requestId);
         return ResponseEntity.ok(confirmedRequest);
     }
 
-    @PutMapping("/{requestId}/reject")
+    @PostMapping("/{requestId}/reject")
     public ResponseEntity<TestDriveRequest> rejectRequest(@PathVariable Long requestId, @RequestBody RejectRequestDTO rejectDTO) { 
 
         String reason = rejectDTO.getReason();
