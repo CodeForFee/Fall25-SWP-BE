@@ -23,6 +23,8 @@ public class TestDriveRequest {
     private String CustomerName;
     private String CustomerEmail;
     private String PhoneNumber;
+    private String CarModel;
+    private String Date;
     private String Time;
     
     @ManyToOne

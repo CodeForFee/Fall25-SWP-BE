@@ -1,14 +1,13 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.TestDriveRequestDTO;
-import com.example.demo.entity.Dealer; // Cập nhật
+import com.example.demo.entity.Dealer; 
 import com.example.demo.entity.TestDriveRequest;
-import com.example.demo.repository.DealerRepository; // Cập nhật
+import com.example.demo.repository.DealerRepository; 
 import com.example.demo.repository.TestDriveRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.example.demo.service.EmailService; 
-import com.example.demo.dto.Mailbody; // Giả sử DTO mail của bạn ở đây
+import com.example.demo.dto.Mailbody;
 
 import java.util.List;
 
@@ -17,7 +16,7 @@ import java.util.List;
 public class TestDriveService {
 
     private final TestDriveRepository testDriveRepository;
-    private final DealerRepository dealerRepository; // <-- Cập nhật
+    private final DealerRepository dealerRepository;
     private final EmailService emailService;
 
     /**
@@ -34,6 +33,8 @@ public class TestDriveService {
         newRequest.setCustomerName(dto.getCustomerName());
         newRequest.setCustomerEmail(dto.getCustomerEmail());
         newRequest.setPhoneNumber(dto.getPhoneNumber());
+        newRequest.setCarModel(dto.getCarModel());
+        newRequest.setDate(dto.getDate());
         newRequest.setTime(dto.getTime());
         newRequest.setDealer(dealer);
         
@@ -50,17 +51,22 @@ public class TestDriveService {
         
         String customerEmail = request.getCustomerEmail();
         String customerName = request.getCustomerName();
+        String PhoneNumber = request.getPhoneNumber();
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
-
+        String date = request.getDate();
+        String time = request.getTime();
+        String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
                       "Cảm ơn bạn đã đặt lịch lái thử tại " + dealerName + ". \n\n" +
                       "Chúng tôi đã nhận được thông tin lịch hẹn của bạn:\n" +
                       "--------------------------------\n" +
-                      "Giờ hẹn: " + request.getTime() + "\n" +
+                      "Mẫu xe: " + carModel + "\n" +
+                      "Giờ hẹn: " + time + "\n" +
+                      "Ngày hẹn: " + date + "\n" +
                       "Địa điểm: " + dealerAddress + "\n" +
-                      "Số điện thoại: " + request.getPhoneNumber() + "\n" +
+                      "Số điện thoại: " + PhoneNumber + "\n" +
                       "--------------------------------\n\n" +
                       "Nhân viên của chúng tôi sẽ sớm liên hệ với bạn để xác nhận lần cuối.\n\n" +
                       "Trân trọng,\n" +
