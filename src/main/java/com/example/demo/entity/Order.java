@@ -28,7 +28,7 @@ public class Order {
     @Column(name = "quote_id", nullable = false, unique = true)
     private Integer quoteId;
 
-    @Column(name = "customer_id")
+    @Column(name = "customer_id",nullable = true)
     private Integer customerId;
 
     @Column(name = "dealer_id", nullable = false)

@@ -180,7 +180,7 @@ public class DealerOrderWorkflowService {
         }
     }
 
-    // 🔥 CẬP NHẬT HOÀN TOÀN: Thay thế phần chỉ log bằng gọi service thực tế
+
     private void processDealerPayment(Order order, OrderDTO orderDTO) {
         try {
             if (orderDTO.getPaymentMethod() != null &&

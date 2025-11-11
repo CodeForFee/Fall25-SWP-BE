@@ -48,6 +48,11 @@ public class QuoteServiceImpl implements QuoteService {
 
     @Override
     public List<QuoteResponseDTO> getQuotesByCustomerId(Integer customerId) {
+        if (customerId == null) {
+            return quoteRepository.findByCustomerIdIsNull().stream()
+                    .map(this::convertToResponseDTO)
+                    .collect(Collectors.toList());
+        }
         return quoteRepository.findByCustomerId(customerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
@@ -64,96 +69,31 @@ public class QuoteServiceImpl implements QuoteService {
     @Transactional
     public QuoteResponseDTO createQuote(QuoteDTO quoteDTO) {
         try {
-            log.debug("Creating quote for customer: {}, creator role: {}",
-                    quoteDTO.getCustomerId(), quoteDTO.getCreatorRole());
+            log.debug("Creating quote - Customer: {}, Creator Role: {}, Dealer: {}",
+                    quoteDTO.getCustomerId(), quoteDTO.getCreatorRole(), quoteDTO.getDealerId());
+
             validateUniqueVehicleIds(quoteDTO);
 
-                User creator = null;
-            if (quoteDTO.getUserId() != null) {
-                creator = userRepository.findById(quoteDTO.getUserId())
-                        .orElseThrow(() -> new RuntimeException("User not found: " + quoteDTO.getUserId()));
+            // Validate user và dealer
+            User creator = validateUserAndDealer(quoteDTO);
 
-                if (!creator.getRole().equals(quoteDTO.getCreatorRole())) {
-                    throw new RuntimeException("User role does not match creator role");
-                }
+            // Validate customer (cho phép null)
+            validateCustomer(quoteDTO);
 
-                if (!creator.getDealerId().equals(quoteDTO.getDealerId())) {
-                    throw new RuntimeException("User does not belong to specified dealer");
-                }
-            } else {
-                if (quoteDTO.getCreatorRole() != User.Role.DEALER_MANAGER) {
-                    throw new RuntimeException("Only DEALER_MANAGER can create quotes without user_id");
-                }
-            }
-            Customer customer = customerRepository.findById(quoteDTO.getCustomerId())
-                    .orElseThrow(() -> new RuntimeException("Customer not found: " + quoteDTO.getCustomerId()));
+            // Tạo quote entity
+            Quote quote = createQuoteEntity(quoteDTO);
 
-            if (!customer.getDealerId().equals(quoteDTO.getDealerId())) {
-                throw new RuntimeException("Customer does not belong to this dealer");
-            }
+            // Xử lý quote details và tính toán tổng tiền
+            processQuoteDetails(quoteDTO, quote);
 
-            Quote quote = new Quote();
-            quote.setCustomerId(quoteDTO.getCustomerId());
-            quote.setUserId(quoteDTO.getUserId());
-            quote.setCreatorRole(quoteDTO.getCreatorRole());
-            quote.setDealerId(quoteDTO.getDealerId());
-            quote.setCurrentApproverRole(null);
+            // Lưu quote
+            Quote savedQuote = quoteRepository.save(quote);
 
-            quote.setCreatedDate(quoteDTO.getCreatedDate() != null ? quoteDTO.getCreatedDate() : LocalDate.now());
-            quote.setStatus(Quote.QuoteStatus.DRAFT);
-            quote.setApprovalStatus(Quote.QuoteApprovalStatus.DRAFT);
-            quote.setValidUntil(quoteDTO.getValidUntil());
+            log.info("Quote created successfully - ID: {}, Creator Role: {}, User ID: {}, Customer ID: {}, Total Amount: {}",
+                    savedQuote.getId(), quoteDTO.getCreatorRole(), quoteDTO.getUserId(),
+                    quoteDTO.getCustomerId(), quote.getTotalAmount());
 
-            BigDecimal totalAmount = BigDecimal.ZERO;
-            BigDecimal totalDiscount = BigDecimal.ZERO;
-
-            if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
-                List<QuoteDetail> quoteDetails = new ArrayList<>();
-
-                for (QuoteDetailDTO detailDTO : quoteDTO.getQuoteDetails()) {
-                    QuoteDetail detail = new QuoteDetail();
-                    detail.setVehicleId(detailDTO.getVehicleId());
-                    detail.setQuantity(detailDTO.getQuantity());
-                    detail.setUnitPrice(detailDTO.getUnitPrice());
-                    detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
-                            detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
-
-                    BigDecimal grossAmount = detailDTO.getUnitPrice()
-                            .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
-                    BigDecimal discountAmount = BigDecimal.ZERO;
-                    BigDecimal netAmount = grossAmount;
-
-                    if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal discountPercent = detail.getPromotionDiscount()
-                                .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-                        discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
-                        netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
-                    }
-
-                    detail.setTotalAmount(netAmount);
-                    totalAmount = totalAmount.add(netAmount);
-                    totalDiscount = totalDiscount.add(discountAmount);
-                    quoteDetails.add(detail);
-                }
-
-                quote.setTotalAmount(totalAmount);
-                Quote savedQuote = quoteRepository.save(quote);
-
-                for (QuoteDetail detail : quoteDetails) {
-                    detail.setQuoteId(savedQuote.getId());
-                }
-                quoteDetailRepository.saveAll(quoteDetails);
-
-                log.info("Quote created successfully - Creator Role: {}, User ID: {}, Total Amount: {}",
-                        quoteDTO.getCreatorRole(), quoteDTO.getUserId(), totalAmount);
-                return convertToResponseDTO(savedQuote);
-            } else {
-                quote.setTotalAmount(BigDecimal.ZERO);
-                Quote savedQuote = quoteRepository.save(quote);
-                log.info("Quote created successfully - No details, Creator Role: {}, User ID: {}",
-                        quoteDTO.getCreatorRole(), quoteDTO.getUserId());
-                return convertToResponseDTO(savedQuote);
-            }
+            return convertToResponseDTO(savedQuote);
 
         } catch (Exception e) {
             log.error("Error creating quote: {}", e.getMessage(), e);
@@ -164,70 +104,49 @@ public class QuoteServiceImpl implements QuoteService {
     @Override
     @Transactional
     public QuoteResponseDTO updateQuote(Integer id, QuoteDTO quoteDTO) {
-        Quote existingQuote = quoteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
-        validateUniqueVehicleIds(quoteDTO);
+        try {
+            Quote existingQuote = quoteRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
 
-        existingQuote.setCustomerId(quoteDTO.getCustomerId());
-        existingQuote.setUserId(quoteDTO.getUserId());
-        existingQuote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
-        existingQuote.setValidUntil(quoteDTO.getValidUntil());
+            validateUniqueVehicleIds(quoteDTO);
+            validateUserAndDealer(quoteDTO);
+            validateCustomer(quoteDTO);
 
-        BigDecimal totalAmount = BigDecimal.ZERO;
+            // Cập nhật thông tin cơ bản
+            updateBasicQuoteInfo(existingQuote, quoteDTO);
 
-        if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
-            quoteDetailRepository.deleteByQuoteId(id);
+            // Xử lý quote details
+            processQuoteDetailsForUpdate(id, quoteDTO, existingQuote);
 
-            List<QuoteDetail> quoteDetails = new ArrayList<>();
-            for (QuoteDetailDTO detailDTO : quoteDTO.getQuoteDetails()) {
-                QuoteDetail detail = new QuoteDetail();
-                detail.setQuoteId(id);
-                detail.setVehicleId(detailDTO.getVehicleId());
-                detail.setQuantity(detailDTO.getQuantity());
-                detail.setUnitPrice(detailDTO.getUnitPrice());
-                detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
-                        detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
-                BigDecimal grossAmount = detailDTO.getUnitPrice()
-                        .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
-                BigDecimal discountAmount = BigDecimal.ZERO;
-                BigDecimal netAmount = grossAmount;
+            Quote updatedQuote = quoteRepository.save(existingQuote);
+            log.debug("Quote updated successfully - ID: {}, Total Amount: {}", id, existingQuote.getTotalAmount());
 
-                if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal discountPercent = detail.getPromotionDiscount()
-                            .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-                    discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
-                    netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
-                }
+            return convertToResponseDTO(updatedQuote);
 
-                detail.setTotalAmount(netAmount);
-                totalAmount = totalAmount.add(netAmount);
-
-                quoteDetails.add(detail);
-            }
-
-            quoteDetailRepository.saveAll(quoteDetails);
-            existingQuote.setTotalAmount(totalAmount);
-        } else {
-            existingQuote.setTotalAmount(BigDecimal.ZERO);
+        } catch (Exception e) {
+            log.error("Error updating quote ID {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Lỗi server khi cập nhật báo giá: " + e.getMessage());
         }
-
-        Quote updatedQuote = quoteRepository.save(existingQuote);
-        log.debug("Quote updated successfully - Total Amount: {}", totalAmount);
-        return convertToResponseDTO(updatedQuote);
     }
 
     @Override
     @Transactional
     public void deleteQuote(Integer id) {
-        Quote quote = quoteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
+        try {
+            Quote quote = quoteRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
 
-        // Delete quote details first
-        quoteDetailRepository.deleteByQuoteId(id);
+            // Delete quote details first
+            quoteDetailRepository.deleteByQuoteId(id);
 
-        // Delete quote
-        quoteRepository.delete(quote);
-        log.debug("Quote deleted successfully");
+            // Delete quote
+            quoteRepository.delete(quote);
+            log.info("Quote deleted successfully - ID: {}", id);
+
+        } catch (Exception e) {
+            log.error("Error deleting quote ID {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Lỗi server khi xóa báo giá: " + e.getMessage());
+        }
     }
 
     @Override
@@ -243,6 +162,138 @@ public class QuoteServiceImpl implements QuoteService {
         log.info("Expired {} old quotes", expiredQuotes.size());
     }
 
+    // ========================= PRIVATE METHODS =========================
+
+    private User validateUserAndDealer(QuoteDTO quoteDTO) {
+        User creator = null;
+        if (quoteDTO.getUserId() != null) {
+            creator = userRepository.findById(quoteDTO.getUserId())
+                    .orElseThrow(() -> new RuntimeException("User not found: " + quoteDTO.getUserId()));
+
+            if (!creator.getRole().equals(quoteDTO.getCreatorRole())) {
+                throw new RuntimeException("User role does not match creator role");
+            }
+
+            if (!creator.getDealerId().equals(quoteDTO.getDealerId())) {
+                throw new RuntimeException("User does not belong to specified dealer");
+            }
+        } else {
+            if (quoteDTO.getCreatorRole() != User.Role.DEALER_MANAGER) {
+                throw new RuntimeException("Only DEALER_MANAGER can create quotes without user_id");
+            }
+        }
+        return creator;
+    }
+
+    private void validateCustomer(QuoteDTO quoteDTO) {
+        if (quoteDTO.getCustomerId() != null) {
+            Customer customer = customerRepository.findById(quoteDTO.getCustomerId())
+                    .orElseThrow(() -> new RuntimeException("Customer not found: " + quoteDTO.getCustomerId()));
+
+            if (!customer.getDealerId().equals(quoteDTO.getDealerId())) {
+                throw new RuntimeException("Customer does not belong to this dealer");
+            }
+        }
+        // Cho phép customerId null - không cần validate
+    }
+
+    private Quote createQuoteEntity(QuoteDTO quoteDTO) {
+        Quote quote = new Quote();
+        quote.setCustomerId(quoteDTO.getCustomerId()); // Có thể là null
+        quote.setUserId(quoteDTO.getUserId());
+        quote.setCreatorRole(quoteDTO.getCreatorRole());
+        quote.setDealerId(quoteDTO.getDealerId());
+        quote.setCurrentApproverRole(null);
+        quote.setCreatedDate(quoteDTO.getCreatedDate() != null ? quoteDTO.getCreatedDate() : LocalDate.now());
+        quote.setStatus(Quote.QuoteStatus.DRAFT);
+        quote.setApprovalStatus(Quote.QuoteApprovalStatus.DRAFT);
+        quote.setValidUntil(quoteDTO.getValidUntil());
+        return quote;
+    }
+
+    private void processQuoteDetails(QuoteDTO quoteDTO, Quote quote) {
+        if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
+            List<QuoteDetail> quoteDetails = new ArrayList<>();
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            for (QuoteDetailDTO detailDTO : quoteDTO.getQuoteDetails()) {
+                QuoteDetail detail = createQuoteDetail(detailDTO);
+                quoteDetails.add(detail);
+                totalAmount = totalAmount.add(detail.getTotalAmount());
+            }
+
+            quote.setTotalAmount(totalAmount);
+
+            // Lưu quote trước để có ID
+            Quote savedQuote = quoteRepository.save(quote);
+
+            // Set quoteId cho các detail và lưu
+            for (QuoteDetail detail : quoteDetails) {
+                detail.setQuoteId(savedQuote.getId());
+            }
+            quoteDetailRepository.saveAll(quoteDetails);
+        } else {
+            quote.setTotalAmount(BigDecimal.ZERO);
+        }
+    }
+
+    private void processQuoteDetailsForUpdate(Integer quoteId, QuoteDTO quoteDTO, Quote existingQuote) {
+        // Xóa details cũ
+        quoteDetailRepository.deleteByQuoteId(quoteId);
+
+        if (quoteDTO.getQuoteDetails() != null && !quoteDTO.getQuoteDetails().isEmpty()) {
+            List<QuoteDetail> quoteDetails = new ArrayList<>();
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            for (QuoteDetailDTO detailDTO : quoteDTO.getQuoteDetails()) {
+                QuoteDetail detail = createQuoteDetail(detailDTO);
+                detail.setQuoteId(quoteId);
+                quoteDetails.add(detail);
+                totalAmount = totalAmount.add(detail.getTotalAmount());
+            }
+
+            quoteDetailRepository.saveAll(quoteDetails);
+            existingQuote.setTotalAmount(totalAmount);
+        } else {
+            existingQuote.setTotalAmount(BigDecimal.ZERO);
+        }
+    }
+
+    private QuoteDetail createQuoteDetail(QuoteDetailDTO detailDTO) {
+        QuoteDetail detail = new QuoteDetail();
+        detail.setVehicleId(detailDTO.getVehicleId());
+        detail.setQuantity(detailDTO.getQuantity());
+        detail.setUnitPrice(detailDTO.getUnitPrice());
+        detail.setPromotionDiscount(detailDTO.getPromotionDiscount() != null ?
+                detailDTO.getPromotionDiscount() : BigDecimal.ZERO);
+
+        // Tính toán tổng tiền
+        BigDecimal grossAmount = detailDTO.getUnitPrice()
+                .multiply(BigDecimal.valueOf(detailDTO.getQuantity()));
+        BigDecimal netAmount = grossAmount;
+
+        if (detail.getPromotionDiscount().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal discountPercent = detail.getPromotionDiscount()
+                    .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+            BigDecimal discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
+            netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        detail.setTotalAmount(netAmount);
+        return detail;
+    }
+
+    private void updateBasicQuoteInfo(Quote quote, QuoteDTO quoteDTO) {
+        quote.setCustomerId(quoteDTO.getCustomerId());
+        quote.setUserId(quoteDTO.getUserId());
+        quote.setCreatorRole(quoteDTO.getCreatorRole());
+        quote.setDealerId(quoteDTO.getDealerId());
+        quote.setValidUntil(quoteDTO.getValidUntil());
+
+        if (quoteDTO.getStatus() != null) {
+            quote.setStatus(Quote.QuoteStatus.valueOf(quoteDTO.getStatus().toUpperCase()));
+        }
+    }
 
     private void validateUniqueVehicleIds(QuoteDTO quoteDTO) {
         if (quoteDTO.getQuoteDetails() == null || quoteDTO.getQuoteDetails().isEmpty()) {
@@ -270,11 +321,11 @@ public class QuoteServiceImpl implements QuoteService {
         dto.setStatus(quote.getStatus().name());
         dto.setApprovalStatus(quote.getApprovalStatus().name());
         dto.setValidUntil(quote.getValidUntil());
-
         dto.setApprovedBy(quote.getApprovedBy());
         dto.setApprovedAt(quote.getApprovedAt());
         dto.setApprovalNotes(quote.getApprovalNotes());
 
+        // Lấy quote details
         List<QuoteDetail> uniqueDetails = quoteDetailRepository.findUniqueByQuoteId(quote.getId());
         List<QuoteDetailResponseDTO> detailDTOs = uniqueDetails.stream()
                 .map(this::convertToDetailResponseDTO)
