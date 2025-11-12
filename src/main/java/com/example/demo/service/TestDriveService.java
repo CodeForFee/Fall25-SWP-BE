@@ -57,10 +57,12 @@ public class TestDriveService {
             return testDriveRepository.findByDealerId(dealerId); 
             // (Hoặc tên hàm repository của bạn)
 
-        } catch (Exception e) } catch (Exception e) {
+        } catch (Exception e) {
+             {
             // Ném ra thông báo lỗi GỐC từ database (e.getMessage())
             throw new RuntimeException("Code V5 Đã Chạy, LỖI THẬT SỰ LÀ: " + e.getMessage(), e);
         }
+    }
     }
 
     /**
