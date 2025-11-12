@@ -2,6 +2,7 @@ package com.example.demo.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -16,6 +17,6 @@ public class TestDriveRequestDTO {
     private String carModel;
     private Integer dealerId;
     private LocalDate date;
-    private LocalDateTime time;
+    private OffsetDateTime time;
     private String note;
 }
