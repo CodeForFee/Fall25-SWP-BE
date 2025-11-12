@@ -57,10 +57,9 @@ public class TestDriveService {
             return testDriveRepository.findByDealerId(dealerId); 
             // (Hoặc tên hàm repository của bạn)
 
-        } catch (Exception e) {
-            // KHI LỖI XẢY RA, NÉM RA LỖI CỦA RIÊNG BẠN
-            // Chúng ta dùng một thông điệp không thể nhầm lẫn
-            throw new RuntimeException("====== LỖI PHIÊN BẢN V5 - OFFSETDATETIME ĐÃ CHẠY ======", e);
+        } catch (Exception e) } catch (Exception e) {
+            // Ném ra thông báo lỗi GỐC từ database (e.getMessage())
+            throw new RuntimeException("Code V5 Đã Chạy, LỖI THẬT SỰ LÀ: " + e.getMessage(), e);
         }
     }
 
