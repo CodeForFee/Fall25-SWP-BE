@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -48,11 +47,21 @@ public class TestDriveService {
     }
 
     public List<TestDriveRequest> findByDealerIdAndStatus(Integer dealerId) {
+        
         return testDriveRepository.findByDealerIdAndStatus(dealerId, TestDriveStatus.PENDING);
     }
 
     public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) {
-        return testDriveRepository.findByDealerId(dealerId);
+        try {
+            // Dòng code gốc của bạn, nơi gây ra lỗi 500
+            return testDriveRepository.findByDealerId(dealerId); 
+            // (Hoặc tên hàm repository của bạn)
+
+        } catch (Exception e) {
+            // KHI LỖI XẢY RA, NÉM RA LỖI CỦA RIÊNG BẠN
+            // Chúng ta dùng một thông điệp không thể nhầm lẫn
+            throw new RuntimeException("====== LỖI PHIÊN BẢN V5 - OFFSETDATETIME ĐÃ CHẠY ======", e);
+        }
     }
 
     /**
