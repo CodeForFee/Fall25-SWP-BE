@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
 
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -86,7 +86,7 @@ public class TestDriveService {
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
         LocalDate date = request.getDate();
-        OffsetDateTime time = request.getRequestTime();
+        LocalDateTime requestTime = request.getRequestTime();
         String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
@@ -94,7 +94,7 @@ public class TestDriveService {
                       "Chúng tôi đã nhận được thông tin lịch hẹn của bạn:\n" +
                       "--------------------------------\n" +
                       "Mẫu xe: " + carModel + "\n" +
-                      "Giờ hẹn: " + time + "\n" +
+                      "Giờ hẹn: " + requestTime + "\n" +
                       "Ngày hẹn: " + date + "\n" +
                       "Địa điểm: " + dealerAddress + "\n" +
                       "Số điện thoại: " + PhoneNumber + "\n" +
@@ -141,13 +141,13 @@ public class TestDriveService {
         String customerName = request.getCustomerName();
         String dealerName = request.getDealer().getName();
         LocalDate date = request.getDate();
-        OffsetDateTime time = request.getRequestTime();
+        LocalDateTime requestTime = request.getRequestTime();
         String carModel = request.getCarModel();
 
         String subject = "Thông báo về lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
                 "Chúng tôi rất tiếc phải thông báo rằng lịch hẹn lái thử của bạn cho xe " + carModel + 
-                " vào lúc " + time + ", ngày " + date + " tại " + dealerName + " không thể được xác nhận.\n\n" +
+                " vào lúc " + requestTime + ", ngày " + date + " tại " + dealerName + " không thể được xác nhận.\n\n" +
                 "Lý do: " + reason + "\n\n" +
                 "Xin vui lòng liên hệ lại với chúng tôi hoặc đặt một lịch hẹn khác vào thời điểm thuận tiện hơn.\n\n" +
                 "Chúng tôi xin lỗi vì sự bất tiện này.\n" +
