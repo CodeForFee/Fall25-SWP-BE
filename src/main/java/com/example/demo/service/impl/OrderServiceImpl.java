@@ -1,5 +1,7 @@
 package com.example.demo.service.impl;
 
+import com.example.demo.service.InstallmentService;
+import com.example.demo.dto.InstallmentRequest;
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
@@ -7,13 +9,16 @@ import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderDetail;
 import com.example.demo.entity.Quote;
 import com.example.demo.entity.QuoteDetail;
+import com.example.demo.entity.Customer;
+import com.example.demo.entity.Dealer;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.QuoteDetailRepository;
 import com.example.demo.repository.QuoteRepository;
+import com.example.demo.repository.CustomerRepository;
+import com.example.demo.repository.DealerRepository;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +42,11 @@ public class OrderServiceImpl implements OrderService {
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
     private final QuoteRepository quoteRepository;
+    private final InstallmentService installmentService;
+
+    //  Thêm repository phục vụ cập nhật công nợ
+    private final CustomerRepository customerRepository;
+    private final DealerRepository dealerRepository;
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -44,24 +54,28 @@ public class OrderServiceImpl implements OrderService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
+
     @Override
     public OrderResponseDTO getOrderById(Integer id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + id));
         return convertToResponseDTO(order);
     }
+
     @Override
     public List<OrderResponseDTO> getOrdersByCustomerId(Integer customerId) {
         return orderRepository.findByCustomerId(customerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
+
     @Override
     public List<OrderResponseDTO> getOrdersByDealerId(Integer dealerId) {
         return orderRepository.findByDealerId(dealerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
+
     @Override
     public List<OrderResponseDTO> getOrdersByUserId(Integer userId) {
         return orderRepository.findByUserId(userId).stream()
@@ -87,22 +101,19 @@ public class OrderServiceImpl implements OrderService {
             Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
                     .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
 
-            // 🔥 FIX: Xử lý customerId có thể null
             Integer customerId = orderDTO.getCustomerId();
             if (customerId == null) {
-                customerId = quote.getCustomerId(); // Có thể vẫn null
+                customerId = quote.getCustomerId();
                 log.warn("CustomerId is null in orderDTO, using quote customerId: {}", customerId);
             }
 
-            // 🔥 VALIDATE: Nếu cả quote và order đều không có customerId
             if (customerId == null) {
                 log.info("Creating order without customer - Quote ID: {}", orderDTO.getQuoteId());
-                // Vẫn cho phép tạo order không có customer
             }
 
             Order order = new Order();
             order.setQuoteId(orderDTO.getQuoteId());
-            order.setCustomerId(customerId); // Có thể là null
+            order.setCustomerId(customerId);
             order.setDealerId(orderDTO.getDealerId());
             order.setUserId(orderDTO.getUserId());
             order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
@@ -174,6 +185,50 @@ public class OrderServiceImpl implements OrderService {
 
             log.info("Order created successfully - ID: {}, Quote ID: {}, Customer ID: {}",
                     savedOrder.getId(), orderDTO.getQuoteId(), customerId);
+
+            //  Thêm đoạn CẬP NHẬT CÔNG NỢ sau khi tạo đơn hàng
+            try {
+                BigDecimal remainingDebt = savedOrder.getRemainingAmount();
+
+                // Cập nhật công nợ khách hàng
+                if (savedOrder.getCustomerId() != null) {
+                    customerRepository.findById(savedOrder.getCustomerId()).ifPresent(customer -> {
+                        customer.addDebt(remainingDebt);
+                        customerRepository.save(customer);
+                        log.info(" Đã cập nhật công nợ khách hàng [{}]: +{} VNĐ → Tổng nợ: {} VNĐ",
+                                customer.getFullName(), remainingDebt, customer.getTotalDebt());
+                    });
+                }
+
+                // Cập nhật công nợ đại lý
+                if (savedOrder.getDealerId() != null) {
+                    dealerRepository.findById(savedOrder.getDealerId()).ifPresent(dealer -> {
+                        if (dealer.getOutstandingDebt() == null) {
+                            dealer.setOutstandingDebt(BigDecimal.ZERO);
+                        }
+                        dealer.setOutstandingDebt(dealer.getOutstandingDebt().add(remainingDebt));
+                        dealerRepository.save(dealer);
+                        log.info(" Đã cập nhật công nợ đại lý [{}]: +{} VNĐ → Tổng nợ: {} VNĐ",
+                                dealer.getName(), remainingDebt, dealer.getOutstandingDebt());
+                    });
+                }
+
+            } catch (Exception ex) {
+                log.error(" Lỗi khi cập nhật công nợ sau Order: {}", ex.getMessage());
+            }
+
+            //  Thêm logic trả góp
+            if (order.getPaymentMethod() == Order.PaymentMethod.INSTALLMENT) {
+                InstallmentRequest request = InstallmentRequest.builder()
+                        .totalAmount(totalAmount)
+                        .months(order.getInstallmentMonths() != null ? order.getInstallmentMonths() : 12)
+                        .annualInterestRate(new BigDecimal("12")) // mặc định 12%/năm
+                        .firstDueDate(LocalDate.now().plusMonths(1))
+                        .build();
+
+                installmentService.generateSchedule(savedOrder.getId(), request);
+                log.info("Generated installment schedule for order {}", savedOrder.getId());
+            }
 
             return convertToResponseDTO(savedOrder);
 
@@ -281,7 +336,7 @@ public class OrderServiceImpl implements OrderService {
         dto.setApprovedBy(order.getApprovedBy());
         dto.setApprovedAt(order.getApprovedAt());
         dto.setApprovalNotes(order.getApprovalNotes());
-        
+
         try {
             List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
             List<OrderDetailResponseDTO> detailDTOs = details.stream()
