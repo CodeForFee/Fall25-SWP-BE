@@ -6,6 +6,8 @@ import com.example.demo.entity.TestDriveRequest;
 import com.example.demo.entity.TestDriveRequest.TestDriveStatus;
 import com.example.demo.repository.DealerRepository; 
 import com.example.demo.repository.TestDriveRepository;
+
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
@@ -39,7 +41,7 @@ public class TestDriveService {
         newRequest.setCarModel(dto.getCarModel());
         newRequest.setDealer(dealer);
         newRequest.setDate(dto.getDate());
-        newRequest.setTime(dto.getTime());
+        newRequest.setRequestTime(dto.getRequestTime());
         newRequest.setNote(dto.getNote());
         newRequest.setStatus(TestDriveStatus.PENDING);
         
@@ -47,16 +49,18 @@ public class TestDriveService {
     }
 
     public List<TestDriveRequest> findByDealerIdAndStatus(Integer dealerId) {
+        
         return testDriveRepository.findByDealerIdAndStatus(dealerId, TestDriveStatus.PENDING);
     }
 
     public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) {
-        return testDriveRepository.findByDealerId(dealerId);
+        return testDriveRepository.findByDealerId(dealerId); 
     }
 
     /**
      * Nhân viên gọi hàm này để XÁC NHẬN lịch hẹn.
      */
+    @Transactional
     public TestDriveRequest confirmTestDrive(Long requestId) {
         // Tìm đơn
         TestDriveRequest request = testDriveRepository.findById(requestId)
@@ -85,7 +89,7 @@ public class TestDriveService {
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
         LocalDate date = request.getDate();
-        LocalDateTime time = request.getTime();
+        LocalDateTime requestTime = request.getRequestTime();
         String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
@@ -93,7 +97,7 @@ public class TestDriveService {
                       "Chúng tôi đã nhận được thông tin lịch hẹn của bạn:\n" +
                       "--------------------------------\n" +
                       "Mẫu xe: " + carModel + "\n" +
-                      "Giờ hẹn: " + time + "\n" +
+                      "Giờ hẹn: " + requestTime + "\n" +
                       "Ngày hẹn: " + date + "\n" +
                       "Địa điểm: " + dealerAddress + "\n" +
                       "Số điện thoại: " + PhoneNumber + "\n" +
@@ -115,6 +119,7 @@ public class TestDriveService {
     /**
      * Nhân viên gọi hàm này để TỪ CHỐI lịch hẹn.
      */
+    @Transactional
     public TestDriveRequest rejectTestDrive(Long requestId, String reason) { // Thêm lý do từ chối
         // Tìm đơn
         TestDriveRequest request = testDriveRepository.findById(requestId)
@@ -140,13 +145,13 @@ public class TestDriveService {
         String customerName = request.getCustomerName();
         String dealerName = request.getDealer().getName();
         LocalDate date = request.getDate();
-        LocalDateTime time = request.getTime();
+        LocalDateTime requestTime = request.getRequestTime();
         String carModel = request.getCarModel();
 
         String subject = "Thông báo về lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
                 "Chúng tôi rất tiếc phải thông báo rằng lịch hẹn lái thử của bạn cho xe " + carModel + 
-                " vào lúc " + time + ", ngày " + date + " tại " + dealerName + " không thể được xác nhận.\n\n" +
+                " vào lúc " + requestTime + ", ngày " + date + " tại " + dealerName + " không thể được xác nhận.\n\n" +
                 "Lý do: " + reason + "\n\n" +
                 "Xin vui lòng liên hệ lại với chúng tôi hoặc đặt một lịch hẹn khác vào thời điểm thuận tiện hơn.\n\n" +
                 "Chúng tôi xin lỗi vì sự bất tiện này.\n" +
