@@ -6,6 +6,8 @@ import com.example.demo.entity.TestDriveRequest;
 import com.example.demo.entity.TestDriveRequest.TestDriveStatus;
 import com.example.demo.repository.DealerRepository; 
 import com.example.demo.repository.TestDriveRepository;
+
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
@@ -58,6 +60,7 @@ public class TestDriveService {
     /**
      * Nhân viên gọi hàm này để XÁC NHẬN lịch hẹn.
      */
+    @Transactional
     public TestDriveRequest confirmTestDrive(Long requestId) {
         // Tìm đơn
         TestDriveRequest request = testDriveRepository.findById(requestId)
@@ -116,6 +119,7 @@ public class TestDriveService {
     /**
      * Nhân viên gọi hàm này để TỪ CHỐI lịch hẹn.
      */
+    @Transactional
     public TestDriveRequest rejectTestDrive(Long requestId, String reason) { // Thêm lý do từ chối
         // Tìm đơn
         TestDriveRequest request = testDriveRepository.findById(requestId)
