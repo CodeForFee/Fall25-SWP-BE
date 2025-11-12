@@ -40,7 +40,7 @@ public class TestDriveRequest {
     private TestDriveStatus status;
 
     @ManyToOne
-    @JoinColumn(name = "dealer") // Tên cột khóa ngoại trong CSDL
+    @JoinColumn(name = "dealerId") // Tên cột khóa ngoại trong CSDL
     private Dealer dealer;
 
     public enum TestDriveStatus {
