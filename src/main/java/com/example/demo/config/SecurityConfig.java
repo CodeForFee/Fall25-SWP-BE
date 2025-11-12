@@ -100,10 +100,9 @@ public class SecurityConfig {
                             "/login/oauth2/code/google" // Cho phép callback
                         ).permitAll()
                         // Public APIs
-                        .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**").permitAll()
+                        .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**","/api/auth/forgot/**").permitAll()
                         // OPTIONS request cho preflight
                         .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/test-drive/schedule-list").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()

@@ -1,7 +1,7 @@
 package com.example.demo.entity;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -29,7 +29,7 @@ public class TestDriveRequest {
     private String phoneNumber;
     private String carModel;
     private LocalDate date;
-    private LocalTime time;
+    private LocalDateTime time;
     private String note;
     
     @Enumerated(EnumType.STRING)
