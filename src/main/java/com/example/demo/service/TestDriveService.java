@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import com.example.demo.dto.Mailbody;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -85,7 +85,7 @@ public class TestDriveService {
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
         LocalDate date = request.getDate();
-        LocalTime time = request.getTime();
+        LocalDateTime time = request.getTime();
         String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
@@ -140,7 +140,7 @@ public class TestDriveService {
         String customerName = request.getCustomerName();
         String dealerName = request.getDealer().getName();
         LocalDate date = request.getDate();
-        LocalTime time = request.getTime();
+        LocalDateTime time = request.getTime();
         String carModel = request.getCarModel();
 
         String subject = "Thông báo về lịch hẹn lái thử tại " + dealerName;

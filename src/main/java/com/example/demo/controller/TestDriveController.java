@@ -4,17 +4,20 @@ import com.example.demo.dto.RejectRequestDTO;
 import com.example.demo.dto.TestDriveRequestDTO;
 import com.example.demo.entity.TestDriveRequest;
 import com.example.demo.service.TestDriveService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
 @CrossOrigin
 @RestController
 @RequestMapping("/api/test-drive")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearer-jwt")
+ 
 public class TestDriveController {
 
     private final TestDriveService testDriveService;
