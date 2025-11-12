@@ -52,17 +52,7 @@ public class TestDriveService {
     }
 
     public List<TestDriveRequest> getDanhSachLichLaiThu(Integer dealerId) {
-        try {
-            // Dòng code gốc của bạn, nơi gây ra lỗi 500
-            return testDriveRepository.findByDealerId(dealerId); 
-            // (Hoặc tên hàm repository của bạn)
-
-        } catch (Exception e) {
-             {
-            // Ném ra thông báo lỗi GỐC từ database (e.getMessage())
-            throw new RuntimeException("Code V5 Đã Chạy, LỖI THẬT SỰ LÀ: " + e.getMessage(), e);
-        }
-    }
+        return testDriveRepository.findByDealerId(dealerId); 
     }
 
     /**

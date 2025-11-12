@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -31,6 +32,7 @@ public class TestDriveRequest {
     private String phoneNumber;
     private String carModel;
     private LocalDate date;
+    @Column(name = "time")
     private OffsetDateTime time;
     private String note;
     
