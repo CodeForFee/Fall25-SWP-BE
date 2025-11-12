@@ -33,11 +33,12 @@ public class TestDriveRequest {
     private String carModel;
     private LocalDate date;
     @Column(name = "time")
-    private OffsetDateTime time;
+    private OffsetDateTime requestTime;
     private String note;
     
     @Enumerated(EnumType.STRING)
     private TestDriveStatus status;
+
     @ManyToOne
     @JoinColumn(name = "dealer") // Tên cột khóa ngoại trong CSDL
     private Dealer dealer;

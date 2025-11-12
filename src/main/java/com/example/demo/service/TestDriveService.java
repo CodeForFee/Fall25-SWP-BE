@@ -39,7 +39,7 @@ public class TestDriveService {
         newRequest.setCarModel(dto.getCarModel());
         newRequest.setDealer(dealer);
         newRequest.setDate(dto.getDate());
-        newRequest.setTime(dto.getTime());
+        newRequest.setRequestTime(dto.getRequestTime());
         newRequest.setNote(dto.getNote());
         newRequest.setStatus(TestDriveStatus.PENDING);
         
@@ -86,7 +86,7 @@ public class TestDriveService {
         String dealerName = request.getDealer().getName();
         String dealerAddress = request.getDealer().getAddress();
         LocalDate date = request.getDate();
-        OffsetDateTime time = request.getTime();
+        OffsetDateTime time = request.getRequestTime();
         String carModel = request.getCarModel();
         String subject = "Xác nhận lịch hẹn lái thử tại " + dealerName;
         String body = "Chào " + customerName + ",\n\n" +
@@ -141,7 +141,7 @@ public class TestDriveService {
         String customerName = request.getCustomerName();
         String dealerName = request.getDealer().getName();
         LocalDate date = request.getDate();
-        OffsetDateTime time = request.getTime();
+        OffsetDateTime time = request.getRequestTime();
         String carModel = request.getCarModel();
 
         String subject = "Thông báo về lịch hẹn lái thử tại " + dealerName;
