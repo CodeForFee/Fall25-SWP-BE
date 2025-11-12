@@ -16,6 +16,6 @@ public class TestDriveRequestDTO {
     private String carModel;
     private Integer dealerId;
     private LocalDate date;
-    private LocalDateTime requestTime;
+    private LocalDateTime time;
     private String note;
 }

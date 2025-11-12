@@ -2,7 +2,6 @@ package com.example.demo.service;
 
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderResponseDTO;
-import com.example.demo.dto.PaymentRequestDTO;
 import com.example.demo.entity.*;
 import com.example.demo.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,9 +30,8 @@ public class OrderWorkflowService {
     private final UserRepository userRepository;
     private final DealerService dealerService;
     private final DealerRepository dealerRepository;
-    private final PaymentProcessingService paymentProcessingService;
 
-
+    @Transactional
     public OrderResponseDTO createOrderFromApprovedQuote(OrderDTO orderDTO) {
         log.info("=== START createOrderFromApprovedQuote - quoteId: {}, paymentMethod: {}, paymentPercentage: {}%",
                 orderDTO.getQuoteId(), orderDTO.getPaymentMethod(), orderDTO.getPaymentPercentage());
@@ -43,6 +40,7 @@ public class OrderWorkflowService {
             Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
                     .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
 
+            // 🔥 VALIDATE PAYMENT PERCENTAGE
             validatePaymentPercentage(orderDTO.getPaymentPercentage());
 
             if (!quote.canCreateOrder()) {
@@ -50,6 +48,7 @@ public class OrderWorkflowService {
                         quote.getApprovalStatus() + ", Quote status: " + quote.getStatus());
             }
 
+            // 🔥 VALIDATE USER (DEALER MANAGER)
             if (orderDTO.getUserId() != null) {
                 User user = userRepository.findById(orderDTO.getUserId())
                         .orElseThrow(() -> new RuntimeException("User not found: " + orderDTO.getUserId()));
@@ -65,6 +64,7 @@ public class OrderWorkflowService {
             Order orderEntity = orderRepository.findById(order.getId())
                     .orElseThrow(() -> new RuntimeException("Order not found after creation: " + order.getId()));
 
+            // 🔥 XỬ LÝ THANH TOÁN THEO PERCENTAGE
             if (orderDTO.getPaymentPercentage() != null && orderDTO.getPaymentPercentage() > 0) {
                 BigDecimal paidAmount = orderEntity.getTotalAmount()
                         .multiply(BigDecimal.valueOf(orderDTO.getPaymentPercentage()))
@@ -76,23 +76,14 @@ public class OrderWorkflowService {
                 orderEntity.setRemainingAmount(remainingAmount);
                 orderEntity.setPaymentPercentage(orderDTO.getPaymentPercentage());
 
+                // 🔥 CẬP NHẬT PAYMENT STATUS
                 if (orderDTO.getPaymentPercentage() == 100) {
                     orderEntity.setPaymentStatus(Order.PaymentStatus.PAID);
                 } else {
                     orderEntity.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
                 }
 
-                if (Payment.PaymentMethod.CASH.name().equals(orderDTO.getPaymentMethod())) {
-                    PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
-                    paymentRequest.setOrderId(orderEntity.getId());
-                    paymentRequest.setPaymentMethod(orderDTO.getPaymentMethod());
-                    paymentRequest.setPaymentPercentage(orderDTO.getPaymentPercentage());
-                    paymentRequest.setPaymentNotes("Initial payment when creating order");
-
-                    paymentProcessingService.processCashPayment(paymentRequest);
-                }
-
-                log.info("💰 PAYMENT PROCESSED - Total: {}, Paid: {} ({}%), Remaining: {}",
+                log.info("Payment processed - Total: {}, Paid: {} ({}%), Remaining: {}",
                         orderEntity.getTotalAmount(), paidAmount,
                         orderDTO.getPaymentPercentage(), remainingAmount);
             }
@@ -100,23 +91,26 @@ public class OrderWorkflowService {
             orderEntity.setApprovalStatus(Order.OrderApprovalStatus.PENDING_APPROVAL);
             orderRepository.save(orderEntity);
 
+            // 🔥 CẬP NHẬT NỢ CỦA DEALER NẾU CÓ SỐ TIỀN CÒN LẠI
             if (orderEntity.getRemainingAmount() != null &&
                     orderEntity.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
                 updateDealerOutstandingDebt(orderEntity.getDealerId(), orderEntity.getRemainingAmount());
             }
 
-            Map<String, Object> auditData = new HashMap<>();
-            auditData.put("quoteId", quote.getId());
-            auditData.put("dealerId", orderDTO.getDealerId());
-            auditData.put("paymentPercentage", orderDTO.getPaymentPercentage() != null ? orderDTO.getPaymentPercentage() : 0);
-            auditData.put("paymentMethod", orderDTO.getPaymentMethod() != null ? orderDTO.getPaymentMethod() : "UNKNOWN");
-            auditData.put("customerId", orderDTO.getCustomerId()); // Có thể null
+            auditLogService.log("ORDER_CREATED_FROM_APPROVED_QUOTE", "ORDER", order.getId().toString(),
+                    Map.of("quoteId", quote.getId(),
+                            "dealerId", orderDTO.getDealerId(),
+                            "paymentPercentage", orderDTO.getPaymentPercentage() != null ? orderDTO.getPaymentPercentage() : 0,
+                            "paymentMethod", orderDTO.getPaymentMethod(),
+                            "totalAmount", orderEntity.getTotalAmount(),
+                            "paidAmount", orderEntity.getPaidAmount(),
+                            "remainingAmount", orderEntity.getRemainingAmount(),
+                            "approvalStatus", "PENDING_APPROVAL"));
 
-            auditLogService.log("ORDER_CREATED_FROM_APPROVED_QUOTE", "ORDER", order.getId().toString(), auditData);
-
-            log.info("✅ ORDER CREATED - Order: {}, Quote: {}, Payment: {}%",
+            log.info("Order created from approved quote - Order: {}, Quote: {}, Payment: {}%, Status: PENDING_APPROVAL",
                     order.getId(), quote.getId(), orderDTO.getPaymentPercentage());
 
+            // 🔥 CẬP NHẬT ORDER RESPONSE VỚI THÔNG TIN THANH TOÁN
             order.setPaymentPercentage(orderDTO.getPaymentPercentage());
             order.setPaidAmount(orderEntity.getPaidAmount());
             order.setRemainingAmount(orderEntity.getRemainingAmount());
@@ -142,13 +136,14 @@ public class OrderWorkflowService {
         }
     }
 
-
-
+    // 🔥 THÊM METHOD CẬP NHẬT NỢ DEALER
+    @Transactional
     protected void updateDealerOutstandingDebt(Integer dealerId, BigDecimal debtAmount) {
         try {
             Dealer dealer = dealerRepository.findById(dealerId)
                     .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
 
+            // Cộng dồn vào số nợ hiện tại
             BigDecimal currentDebt = dealer.getOutstandingDebt() != null ? dealer.getOutstandingDebt() : BigDecimal.ZERO;
             dealer.setOutstandingDebt(currentDebt.add(debtAmount));
             dealerRepository.save(dealer);

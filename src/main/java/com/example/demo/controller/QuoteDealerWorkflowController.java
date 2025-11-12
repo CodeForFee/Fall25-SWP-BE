@@ -99,6 +99,10 @@ public class QuoteDealerWorkflowController {
         return ResponseEntity.ok(order);
     }
 
+    /**
+     * Duyệt order
+     * GIỐNG: POST /api/workflow/orders/{orderId}/approve
+     */
     @PostMapping("/orders/{orderId}/approve")
     public ResponseEntity<String> approveOrder(
             @PathVariable Integer orderId,
@@ -108,6 +112,10 @@ public class QuoteDealerWorkflowController {
         return ResponseEntity.ok("Order approved successfully with inventory processing");
     }
 
+    /**
+     * Từ chối order
+     * GIỐNG: POST /api/workflow/orders/{orderId}/reject
+     */
     @PostMapping("/orders/{orderId}/reject")
     public ResponseEntity<String> rejectOrder(
             @PathVariable Integer orderId,

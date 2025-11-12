@@ -62,7 +62,4 @@ public interface QuoteRepository extends JpaRepository<Quote, Integer> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT q FROM Quote q WHERE q.id = :quoteId")
     Optional<Quote> findByIdWithLock(@Param("quoteId") Integer quoteId);
-
-    List<Quote> findByCustomerIdIsNull();
-
 }

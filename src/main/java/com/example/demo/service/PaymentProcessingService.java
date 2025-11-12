@@ -16,7 +16,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +31,7 @@ public class PaymentProcessingService {
     private final QuoteDetailRepository quoteDetailRepository;
     private final AuditLogService auditLogService;
 
+    @Transactional
     public Payment processVNPayReturn(Map<String, String> params) {
         try {
             log.info("PROCESSING VNPay RETURN");
@@ -65,6 +65,7 @@ public class PaymentProcessingService {
                 payment.setNotes("Payment successful via VNPay");
                 log.info("Payment completed: {}", payment.getId());
 
+                // ✅ CẬP NHẬT KHO KHI THANH TOÁN THÀNH CÔNG
                 updateInventoryAfterSuccessfulPayment(payment);
 
             } else {
@@ -83,48 +84,32 @@ public class PaymentProcessingService {
         }
     }
 
+    @Transactional
     protected void updateInventoryAfterSuccessfulPayment(Payment payment) {
         try {
-            Order order = orderRepository.findById(payment.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Order not found: " + payment.getOrderId()));
+            log.info("Updating inventory after successful payment for order: {}", payment.getOrder().getId());
 
-            if (order.getStatus() == Order.OrderStatus.COMPLETED) {
-                log.info("🔄 Inventory already updated for order: {}, skipping...", order.getId());
-                return;
-            }
-            log.info("UPDATING INVENTORY AFTER PAYMENT - Payment: {}, Order: {}, Percentage: {}%",
-                    payment.getId(), order.getId(), payment.getPaymentPercentage());
-
-            if (order.getCustomerId() == null) {
-                transferInventoryFromFactoryToDealer(order);
-                log.info("IMPORT FLOW - Factory → Dealer for order: {}", order.getId());
-            } else {
-                decreaseDealerInventoryForCustomerPurchase(order);
-                log.info("SALES FLOW - Dealer inventory decreased for order: {}, Customer: {}",
-                        order.getId(), order.getCustomerId());
-            }
-
+            Order order = payment.getOrder();
+            transferInventoryFromFactoryToDealer(order);
             updateOrderStatusAfterPayment(order);
 
-            Map<String, Object> auditData = new HashMap<>();
-            auditData.put("paymentId", payment.getId());
-            auditData.put("dealerId", order.getDealerId());
-            auditData.put("customerId", order.getCustomerId()); // Có thể null
-            auditData.put("paymentPercentage", payment.getPaymentPercentage());
+            auditLogService.log("INVENTORY_UPDATED_AFTER_PAYMENT", "ORDER", order.getId().toString(),
+                    Map.of("paymentId", payment.getId(),
+                            "amount", payment.getAmount(),
+                            "dealerId", order.getDealerId(),
+                            "paymentMethod", payment.getPaymentMethod().name()));
 
-            auditLogService.log("PAYMENT_INVENTORY_UPDATE", "ORDER", order.getId().toString(), auditData);
-
-            log.info("INVENTORY UPDATED - Order: {}, Payment: {}%",
-                    order.getId(), payment.getPaymentPercentage());
+            log.info("Inventory updated successfully for order: {}", order.getId());
 
         } catch (Exception e) {
-            log.error("ERROR UPDATING INVENTORY AFTER PAYMENT: {}", e.getMessage(), e);
+            log.error("Error updating inventory after payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to update inventory: " + e.getMessage(), e);
         }
     }
 
     private void transferInventoryFromFactoryToDealer(Order order) {
         try {
+            // Lấy quote details từ order
             List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(order.getQuoteId());
 
             if (quoteDetails.isEmpty()) {
@@ -132,39 +117,17 @@ public class PaymentProcessingService {
             }
 
             for (QuoteDetail detail : quoteDetails) {
+                // ✅ SỬ DỤNG PHƯƠNG THỨC CÓ SẴN TRONG InventoryService
                 inventoryService.transferFactoryToDealer(
                         order.getDealerId(),
                         detail.getVehicleId(),
                         detail.getQuantity()
                 );
-                log.info("FACTORY → DEALER - Dealer: {}, Vehicle: {}, Quantity: {}",
+                log.info("Transferred inventory - Dealer: {}, Vehicle: {}, Quantity: {}",
                         order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
             }
         } catch (Exception e) {
             log.error("Error transferring inventory from factory to dealer: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    private void decreaseDealerInventoryForCustomerPurchase(Order order) {
-        try {
-            List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(order.getQuoteId());
-
-            if (quoteDetails.isEmpty()) {
-                throw new RuntimeException("No quote details found for order: " + order.getId());
-            }
-
-            for (QuoteDetail detail : quoteDetails) {
-                inventoryService.deductDealerInventory(
-                        order.getDealerId(),
-                        detail.getVehicleId(),
-                        detail.getQuantity()
-                );
-                log.info(" DEALER → CUSTOMER - Dealer: {}, Vehicle: {}, Quantity: {}, Customer: {}",
-                        order.getDealerId(), detail.getVehicleId(), detail.getQuantity(), order.getCustomerId());
-            }
-        } catch (Exception e) {
-            log.error("Error decreasing dealer inventory: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -179,14 +142,17 @@ public class PaymentProcessingService {
             }
 
             orderRepository.save(order);
-
-            String orderType = order.getCustomerId() == null ? "IMPORT" : "SALES";
-            log.info("ORDER COMPLETED - Type: {}, Order: {}, Payment: {}",
-                    orderType, order.getId(), order.getPaymentStatus());
+            log.info("Order status updated to COMPLETED, Payment: {} - Order: {}",
+                    order.getPaymentStatus(), order.getId());
         } catch (Exception e) {
             log.error("Error updating order status: {}", e.getMessage(), e);
             throw e;
         }
+    }
+
+    // Các methods khác giữ nguyên
+    public List<Payment> getPaymentsByOrder(Integer orderId) {
+        return paymentRepository.findByOrderId(orderId);
     }
 
     public Payment getPaymentByTxnRef(String txnRef) {
@@ -194,13 +160,10 @@ public class PaymentProcessingService {
                 .orElseThrow(() -> new RuntimeException("Payment not found with TxnRef: " + txnRef));
     }
 
-    public List<Payment> getPaymentsByOrder(Integer orderId) {
-        return paymentRepository.findByOrderId(orderId);
-    }
-
     public BigDecimal getTotalPaidAmountByOrder(Integer orderId) {
         return paymentRepository.getTotalPaidAmountByOrderId(orderId);
     }
+
     @Transactional
     public Payment processPaymentWithPercentage(PaymentRequestDTO paymentRequest) {
         try {
@@ -210,12 +173,15 @@ public class PaymentProcessingService {
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found: " + paymentRequest.getOrderId()));
 
+            // Tính toán số tiền thanh toán
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
 
+            // 🔥 CẬP NHẬT: Xác định status dựa trên payment method
             Payment.Status paymentStatus = Payment.PaymentMethod.CASH.name().equals(paymentRequest.getPaymentMethod())
-                    ? Payment.Status.COMPLETED
-                    : Payment.Status.PENDING;
+                    ? Payment.Status.COMPLETED  // Tiền mặt: hoàn thành ngay
+                    : Payment.Status.PENDING;   // Chuyển khoản: chờ xử lý
 
+            // Tạo payment
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -230,7 +196,8 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            if (paymentStatus == Payment.Status.COMPLETED) {
+            // 🔥 QUAN TRỌNG: Nếu là tiền mặt, cập nhật inventory ngay
+            if (Payment.PaymentMethod.CASH.name().equals(paymentRequest.getPaymentMethod())) {
                 updateInventoryAfterSuccessfulPayment(payment);
             }
 
@@ -245,20 +212,7 @@ public class PaymentProcessingService {
         }
     }
 
-    private BigDecimal calculatePaymentAmount(Order order, Integer paymentPercentage) {
-        if (paymentPercentage == null || paymentPercentage <= 0) {
-            throw new RuntimeException("Invalid payment percentage: " + paymentPercentage);
-        }
-
-        BigDecimal orderTotal = order.getTotalAmount();
-        if (orderTotal == null) {
-            throw new RuntimeException("Order total amount is null");
-        }
-
-        return orderTotal.multiply(BigDecimal.valueOf(paymentPercentage))
-                .divide(BigDecimal.valueOf(100));
-    }
-
+    @Transactional
     public Payment processCashPayment(PaymentRequestDTO paymentRequest) {
         try {
             log.info("Processing cash payment - Order: {}, Percentage: {}%",
@@ -267,7 +221,10 @@ public class PaymentProcessingService {
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
+            // Tính toán số tiền thanh toán
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            // Tạo payment record với status COMPLETED
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -282,6 +239,7 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
+            // 🔥 CẬP NHẬT KHO NGAY (vì đã nhận tiền mặt)
             updateInventoryAfterSuccessfulPayment(payment);
 
             log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
@@ -295,6 +253,7 @@ public class PaymentProcessingService {
         }
     }
 
+    @Transactional
     public Payment processBankTransferPayment(PaymentRequestDTO paymentRequest) {
         try {
             log.info("Processing bank transfer payment - Order: {}, Percentage: {}%",
@@ -303,7 +262,10 @@ public class PaymentProcessingService {
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
+            // Tính toán số tiền thanh toán
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            // Tạo payment record với status PENDING (chờ xác nhận chuyển khoản)
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -321,11 +283,27 @@ public class PaymentProcessingService {
             log.info("Bank transfer payment processed - ID: {}, Order: {}, Amount: {}, Status: PENDING",
                     payment.getId(), order.getId(), paymentAmount);
 
+            // 🔥 KHÔNG cập nhật inventory ngay - chờ xác nhận chuyển khoản
+
             return payment;
 
         } catch (Exception e) {
             log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
         }
+    }
+
+    private BigDecimal calculatePaymentAmount(Order order, Integer paymentPercentage) {
+        if (paymentPercentage == null || paymentPercentage <= 0) {
+            throw new RuntimeException("Invalid payment percentage: " + paymentPercentage);
+        }
+
+        BigDecimal orderTotal = order.getTotalAmount();
+        if (orderTotal == null) {
+            throw new RuntimeException("Order total amount is null");
+        }
+
+        return orderTotal.multiply(BigDecimal.valueOf(paymentPercentage))
+                .divide(BigDecimal.valueOf(100));
     }
 }

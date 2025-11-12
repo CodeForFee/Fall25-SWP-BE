@@ -138,9 +138,7 @@ public class CustomerServiceIMPL implements CustomerService {
         dto.setEmail(customer.getEmail());
         dto.setCitizenId(customer.getCitizenId());
         dto.setDealerId(customer.getDealerId());
-        dto.setTotalSpent(customer.getTotalSpent());
-        dto.setTotalDebt(customer.getTotalDebt());
-        dto.setIsVip(customer.getIsVip());
+
         if (customer.getDealer() != null) {
             dto.setDealerName(customer.getDealer().getName());
         }

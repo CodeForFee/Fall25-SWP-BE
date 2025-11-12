@@ -1,8 +1,8 @@
 package com.example.demo.entity;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import jakarta.persistence.Column;
+import java.time.OffsetDateTime;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -30,15 +30,13 @@ public class TestDriveRequest {
     private String phoneNumber;
     private String carModel;
     private LocalDate date;
-    @Column(name = "time")
-    private LocalDateTime requestTime;
+    private OffsetDateTime time;
     private String note;
     
     @Enumerated(EnumType.STRING)
     private TestDriveStatus status;
-
     @ManyToOne
-    @JoinColumn(name = "dealerId") // Tên cột khóa ngoại trong CSDL
+    @JoinColumn(name = "dealer") // Tên cột khóa ngoại trong CSDL
     private Dealer dealer;
 
     public enum TestDriveStatus {

@@ -62,9 +62,6 @@ public class Customer {
 
     public void addToTotalSpent(BigDecimal amount) {
         if (amount != null) {
-            if (this.totalSpent == null) {
-                this.totalSpent = BigDecimal.ZERO;
-            }
             this.totalSpent = this.totalSpent.add(amount);
             updateVipStatus();
         }
@@ -72,9 +69,6 @@ public class Customer {
 
     public void addDebt(BigDecimal debtAmount) {
         if (debtAmount != null && debtAmount.compareTo(BigDecimal.ZERO) > 0) {
-            if (this.totalDebt == null) {
-                this.totalDebt = BigDecimal.ZERO;
-            }
             this.totalDebt = this.totalDebt.add(debtAmount);
         }
     }

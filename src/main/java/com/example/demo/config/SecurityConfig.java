@@ -13,19 +13,34 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Arrays;
+import java.util.List;
 
+// --- Swagger Imports ---
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 
-import java.util.Arrays;
-import java.util.List;
+// --- Custom Security Imports (JWT và OAuth2) ---
+import com.example.demo.security.CustomOAuth2UserService;
+import com.example.demo.security.OAuth2LoginFailureHandler;
+import com.example.demo.security.OAuth2LoginSuccessHandler;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    @Autowired
+    private CustomOAuth2UserService customOAuth2UserService;
+
+    @Autowired
+    private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    
+    @Autowired
+    private OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
 
     @Bean
@@ -37,7 +52,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-         configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:8080",
                 "http://127.0.0.1:3000",
@@ -50,23 +65,13 @@ public class SecurityConfig {
                 "https://electric-vehicle-dealer-management.vercel.app",
                 "https://127.0.0.1:3000"
         ));
-
-        // ✅ Các method được phép gọi
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-
-        // ✅ Các header được phép gửi
         configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
-
-        // ✅ Cho phép gửi cookie/token kèm request
         configuration.setAllowCredentials(true);
-
-        // ✅ Cho phép header Authorization trong response
         configuration.setExposedHeaders(List.of("Authorization"));
 
-        // ✅ Áp dụng cho toàn bộ route
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
     }
 
@@ -90,6 +95,10 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/api-docs/**"
                         ).permitAll()
+                        .requestMatchers(
+                            "/oauth2/**", // Cho phép bắt đầu luồng
+                            "/login/oauth2/code/google" // Cho phép callback
+                        ).permitAll()
                         // Public APIs
                         .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**","/api/auth/forgot/**").permitAll()
                         // OPTIONS request cho preflight
@@ -99,7 +108,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
                         .anyRequest().authenticated()
+                ) 
+                
+                .oauth2Login(oauth2 -> oauth2
+                    // Dùng service để kiểm tra user (giữ nguyên)
+                    .userInfoEndpoint(userInfo -> userInfo
+                        .userService(customOAuth2UserService) // Lấy từ field @Autowired
+                    )
+                    // Dùng handler thành công (để tạo JWT)
+                    .successHandler(oAuth2LoginSuccessHandler) // Lấy từ field @Autowired
+                    // Dùng handler thất bại (để báo lỗi)
+                    .failureHandler(oAuth2LoginFailureHandler) // Lấy từ field @Autowired
                 )
+                
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

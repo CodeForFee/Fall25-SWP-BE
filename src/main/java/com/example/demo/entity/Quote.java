@@ -25,10 +25,10 @@ public class Quote {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "customer_id", nullable = true)
+    @Column(name = "customer_id", nullable = false)
     private Integer customerId;
 
-
+    // 🔥 SỬA: user_id có thể null để xử lý luồng manager
     @Column(name = "user_id", nullable = true)
     private Integer userId;
 
@@ -83,16 +83,13 @@ public class Quote {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
-    @JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
-    @JsonIgnore
     private Customer customer;
 
     @OneToMany(mappedBy = "quote", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JsonIgnore
     private List<QuoteDetail> quoteDetails;
 
     @OneToOne(mappedBy = "quote", fetch = FetchType.LAZY)
@@ -149,6 +146,10 @@ public class Quote {
                 this.userId != null && this.userId.equals(currentUser.getUserId()) && // Staff tạo order từ quote của chính mình
                 this.approvalStatus == QuoteApprovalStatus.APPROVED &&
                 this.status == QuoteStatus.ACCEPTED;
+    }
+
+    public boolean canBeApprovedByEVM() {
+        return this.approvalStatus == QuoteApprovalStatus.PENDING_EVM_APPROVAL;
     }
 
     public boolean canCreateOrder() {

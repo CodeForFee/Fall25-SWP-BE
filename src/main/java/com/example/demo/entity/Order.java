@@ -28,7 +28,7 @@ public class Order {
     @Column(name = "quote_id", nullable = false, unique = true)
     private Integer quoteId;
 
-    @Column(name = "customer_id",nullable = true)
+    @Column(name = "customer_id")
     private Integer customerId;
 
     @Column(name = "dealer_id", nullable = false)
@@ -105,24 +105,19 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dealer_id", referencedColumnName = "dealerId", insertable = false, updatable = false)
-    @JsonIgnore
     private Dealer dealer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId", insertable = false, updatable = false)
-    @JsonIgnore
     private User user;
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JsonIgnore
     private List<OrderDetail> orderDetails;
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
-    @JsonIgnore
     private List<Contract> contracts;
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
-    @JsonIgnore
     private List<Payment> payments;
 
     // ===== ENUMS =====
