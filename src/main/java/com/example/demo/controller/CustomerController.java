@@ -9,7 +9,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import com.example.demo.dto.FeedbackDTO;       
+import com.example.demo.service.FeedbackService;  
+import jakarta.validation.Valid;               
+import java.util.Map;
 import java.util.List;
 
 @RestController
@@ -21,7 +24,7 @@ import java.util.List;
 public class CustomerController {
 
     private final CustomerService customerService;
-
+    private final FeedbackService feedbackService;
     @GetMapping
     @Operation(summary = "Lấy tất cả customers")
     public ResponseEntity<List<CustomerResponseDTO>> getAllCustomers() {
@@ -57,5 +60,15 @@ public class CustomerController {
     @Operation(summary = "Lấy customers theo dealer")
     public ResponseEntity<List<CustomerResponseDTO>> getCustomersByDealer(@PathVariable Integer dealerId) {
         return ResponseEntity.ok(customerService.getCustomersByDealer(dealerId));
+    }
+
+    @PostMapping("/feedback")
+    @Operation(summary = "Khách hàng gửi feedback")
+    public ResponseEntity<?> submitFeedback(@Valid @RequestBody FeedbackDTO feedbackDTO) {
+        
+        
+        feedbackService.saveFeedback(feedbackDTO);
+
+        return ResponseEntity.ok(Map.of("message", "Gửi feedback thành công! Cảm ơn bạn."));
     }
 }
