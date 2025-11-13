@@ -1,13 +1,27 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.InstallmentPlanDTO;
 import com.example.demo.dto.InstallmentRequest;
-import com.example.demo.entity.InstallmentSchedule;
+import com.example.demo.dto.InstallmentScheduleDTO;
+
 import java.util.List;
 
+/**
+ * Interface định nghĩa các hành vi của Service xử lý trả góp
+ */
 public interface InstallmentService {
-    InstallmentPlanDTO previewInstallmentPlan(InstallmentRequest request);
-    List<InstallmentSchedule> generateSchedule(Integer orderId, InstallmentRequest request);
-    InstallmentSchedule markInstallmentPaid(Integer scheduleId);
-    List<InstallmentSchedule> getSchedulesByOrderId(Integer orderId);
+
+    /**
+     * Tạo kế hoạch trả góp (chia tiền thành nhiều kỳ)
+     */
+    List<InstallmentScheduleDTO> createInstallmentPlan(InstallmentRequest req);
+
+    /**
+     * Lấy danh sách các kỳ trả góp theo Payment ID
+     */
+    List<InstallmentScheduleDTO> getInstallments(Integer paymentId);
+
+    /**
+     * Đánh dấu một kỳ là đã thanh toán
+     */
+    void markAsPaid(Integer transactionId, String method);
 }

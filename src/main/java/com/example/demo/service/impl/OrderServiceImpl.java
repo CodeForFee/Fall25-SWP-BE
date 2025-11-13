@@ -1,7 +1,5 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.service.InstallmentService;
-import com.example.demo.dto.InstallmentRequest;
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
@@ -9,18 +7,12 @@ import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderDetail;
 import com.example.demo.entity.Quote;
 import com.example.demo.entity.QuoteDetail;
-import com.example.demo.entity.Customer;
-import com.example.demo.entity.Dealer;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.QuoteDetailRepository;
 import com.example.demo.repository.QuoteRepository;
-import com.example.demo.repository.CustomerRepository;
-import com.example.demo.repository.DealerRepository;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,11 +32,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
     private final QuoteRepository quoteRepository;
-    private final InstallmentService installmentService;
-
-    //  Thêm repository phục vụ cập nhật công nợ
-    private final CustomerRepository customerRepository;
-    private final DealerRepository dealerRepository;
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -52,28 +39,24 @@ public class OrderServiceImpl implements OrderService {
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public OrderResponseDTO getOrderById(Integer id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + id));
         return convertToResponseDTO(order);
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByCustomerId(Integer customerId) {
         return orderRepository.findByCustomerId(customerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByDealerId(Integer dealerId) {
         return orderRepository.findByDealerId(dealerId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
-
     @Override
     public List<OrderResponseDTO> getOrdersByUserId(Integer userId) {
         return orderRepository.findByUserId(userId).stream()
@@ -91,149 +74,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponseDTO createOrder(OrderDTO orderDTO) {
-        try {
-            List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(orderDTO.getQuoteId());
-            if (quoteDetails.isEmpty()) {
-                throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + orderDTO.getQuoteId());
-            }
-
-            Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
-                    .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
-
-            Integer customerId = orderDTO.getCustomerId();
-            if (customerId == null) {
-                customerId = quote.getCustomerId();
-                log.warn("CustomerId is null in orderDTO, using quote customerId: {}", customerId);
-            }
-
-            if (customerId == null) {
-                log.info("Creating order without customer - Quote ID: {}", orderDTO.getQuoteId());
-            }
-
-            Order order = new Order();
-            order.setQuoteId(orderDTO.getQuoteId());
-            order.setCustomerId(customerId);
-            order.setDealerId(orderDTO.getDealerId());
-            order.setUserId(orderDTO.getUserId());
-            order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
-            order.setStatus(Order.OrderStatus.valueOf(orderDTO.getStatus().toUpperCase()));
-            order.setPaymentMethod(Order.PaymentMethod.valueOf(orderDTO.getPaymentMethod().toUpperCase()));
-            order.setNotes(orderDTO.getNotes());
-
-            if (orderDTO.getPaymentPercentage() != null) {
-                order.setPaymentPercentage(orderDTO.getPaymentPercentage());
-            }
-
-            BigDecimal totalAmount = BigDecimal.ZERO;
-            BigDecimal totalDiscount = BigDecimal.ZERO;
-            List<OrderDetail> orderDetails = new ArrayList<>();
-
-            for (QuoteDetail quoteDetail : quoteDetails) {
-                OrderDetail orderDetail = new OrderDetail();
-                orderDetail.setVehicleId(quoteDetail.getVehicleId());
-                orderDetail.setQuantity(quoteDetail.getQuantity());
-                orderDetail.setUnitPrice(quoteDetail.getUnitPrice());
-
-                BigDecimal promotionDiscount = quoteDetail.getPromotionDiscount();
-                BigDecimal grossAmount = quoteDetail.getUnitPrice().multiply(BigDecimal.valueOf(quoteDetail.getQuantity()));
-                BigDecimal discountAmount = BigDecimal.ZERO;
-                BigDecimal netAmount = grossAmount;
-
-                if (promotionDiscount != null && promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal discountPercent = promotionDiscount.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-                    discountAmount = grossAmount.multiply(discountPercent).setScale(2, RoundingMode.HALF_UP);
-                    netAmount = grossAmount.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
-                }
-
-                orderDetail.setTotalAmount(netAmount);
-                totalAmount = totalAmount.add(netAmount);
-                totalDiscount = totalDiscount.add(discountAmount);
-                orderDetails.add(orderDetail);
-            }
-
-            order.setTotalAmount(totalAmount);
-            order.setTotalDiscount(totalDiscount);
-
-            BigDecimal paidAmount = BigDecimal.ZERO;
-            if (orderDTO.getPaymentPercentage() != null && orderDTO.getPaymentPercentage() > 0) {
-                paidAmount = totalAmount.multiply(BigDecimal.valueOf(orderDTO.getPaymentPercentage()))
-                        .divide(BigDecimal.valueOf(100));
-            } else if (orderDTO.getPaidAmount() != null) {
-                paidAmount = orderDTO.getPaidAmount();
-            }
-
-            BigDecimal remainingAmount = totalAmount.subtract(paidAmount);
-
-            order.setPaidAmount(paidAmount);
-            order.setRemainingAmount(remainingAmount);
-
-            if (paidAmount.compareTo(BigDecimal.ZERO) == 0) {
-                order.setPaymentStatus(Order.PaymentStatus.UNPAID);
-            } else if (paidAmount.compareTo(totalAmount) == 0) {
-                order.setPaymentStatus(Order.PaymentStatus.PAID);
-            } else {
-                order.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
-            }
-
-            Order savedOrder = orderRepository.save(order);
-
-            for (OrderDetail detail : orderDetails) {
-                detail.setOrderId(savedOrder.getId());
-            }
-            orderDetailRepository.saveAll(orderDetails);
-
-            log.info("Order created successfully - ID: {}, Quote ID: {}, Customer ID: {}",
-                    savedOrder.getId(), orderDTO.getQuoteId(), customerId);
-
-            //  Thêm đoạn CẬP NHẬT CÔNG NỢ sau khi tạo đơn hàng
-            try {
-                BigDecimal remainingDebt = savedOrder.getRemainingAmount();
-
-                // Cập nhật công nợ khách hàng
-                if (savedOrder.getCustomerId() != null) {
-                    customerRepository.findById(savedOrder.getCustomerId()).ifPresent(customer -> {
-                        customer.addDebt(remainingDebt);
-                        customerRepository.save(customer);
-                        log.info(" Đã cập nhật công nợ khách hàng [{}]: +{} VNĐ → Tổng nợ: {} VNĐ",
-                                customer.getFullName(), remainingDebt, customer.getTotalDebt());
-                    });
-                }
-
-                // Cập nhật công nợ đại lý
-                if (savedOrder.getDealerId() != null) {
-                    dealerRepository.findById(savedOrder.getDealerId()).ifPresent(dealer -> {
-                        if (dealer.getOutstandingDebt() == null) {
-                            dealer.setOutstandingDebt(BigDecimal.ZERO);
-                        }
-                        dealer.setOutstandingDebt(dealer.getOutstandingDebt().add(remainingDebt));
-                        dealerRepository.save(dealer);
-                        log.info(" Đã cập nhật công nợ đại lý [{}]: +{} VNĐ → Tổng nợ: {} VNĐ",
-                                dealer.getName(), remainingDebt, dealer.getOutstandingDebt());
-                    });
-                }
-
-            } catch (Exception ex) {
-                log.error(" Lỗi khi cập nhật công nợ sau Order: {}", ex.getMessage());
-            }
-
-            //  Thêm logic trả góp
-            if (order.getPaymentMethod() == Order.PaymentMethod.INSTALLMENT) {
-                InstallmentRequest request = InstallmentRequest.builder()
-                        .totalAmount(totalAmount)
-                        .months(order.getInstallmentMonths() != null ? order.getInstallmentMonths() : 12)
-                        .annualInterestRate(new BigDecimal("12")) // mặc định 12%/năm
-                        .firstDueDate(LocalDate.now().plusMonths(1))
-                        .build();
-
-                installmentService.generateSchedule(savedOrder.getId(), request);
-                log.info("Generated installment schedule for order {}", savedOrder.getId());
-            }
-
-            return convertToResponseDTO(savedOrder);
-
-        } catch (Exception e) {
-            log.error("Error creating order: {}", e.getMessage(), e);
-            throw new RuntimeException("Lỗi server khi tạo đơn hàng: " + e.getMessage());
+        List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(orderDTO.getQuoteId());
+        if (quoteDetails.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy chi tiết báo giá với Quote ID: " + orderDTO.getQuoteId());
         }
 
 
@@ -412,16 +255,11 @@ public class OrderServiceImpl implements OrderService {
         dto.setApprovedAt(order.getApprovedAt());
         dto.setApprovalNotes(order.getApprovalNotes());
 
-        try {
-            List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
-            List<OrderDetailResponseDTO> detailDTOs = details.stream()
-                    .map(this::convertToDetailResponseDTO)
-                    .collect(Collectors.toList());
-            dto.setOrderDetails(detailDTOs);
-        } catch (Exception e) {
-            log.warn("Could not fetch orderDetails for order {}: {}", order.getId(), e.getMessage());
-            dto.setOrderDetails(new ArrayList<>());
-        }
+        List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
+        List<OrderDetailResponseDTO> detailDTOs = details.stream()
+                .map(this::convertToDetailResponseDTO)
+                .collect(Collectors.toList());
+        dto.setOrderDetails(detailDTOs);
 
         return dto;
     }
