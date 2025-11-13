@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Installment Management", description = "APIs for managing installment payment plans")
 @SecurityRequirement(name = "bearer-jwt")
+@PreAuthorize("isAuthenticated()")  // Tất cả API yêu cầu JWT nhưng không kiểm tra role
 public class InstallmentController {
 
     private final InstallmentService installmentService;
