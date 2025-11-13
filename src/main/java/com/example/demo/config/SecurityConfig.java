@@ -50,9 +50,19 @@ public class SecurityConfig {
                 "https://127.0.0.1:3000"
         ));
 
+        // THÊM DÒNG NÀY 
+        configuration.addAllowedOriginPattern("*");
+
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        // THÊM DÒNG NÀY – Cho phép mọi header
+        configuration.addAllowedHeader("*");
+
         configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
         configuration.setAllowCredentials(true);
+
+        // THÊM EXPOSING HEADER
+        configuration.addExposedHeader("*");
         configuration.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -74,7 +84,6 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
 
-                        // Swagger & public endpoints
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -82,27 +91,22 @@ public class SecurityConfig {
                                 "/api-docs/**"
                         ).permitAll()
 
-                        // Public APIs
                         .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**","/api/auth/forgot/**").permitAll()
 
-                        //   Cho phép OPTIONS trước để tránh lỗi CORS
+
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // OPTIONS & test drive
                         .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // (GIỮ NGUYÊN)
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Payments
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
 
-                        // Dealers
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
 
-                        //  Yêu cầu JWT cho Installment API
+                        // Installments (yêu cầu JWT)
                         .requestMatchers("/api/installments/**").authenticated()
 
-                        // Các API còn lại
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
