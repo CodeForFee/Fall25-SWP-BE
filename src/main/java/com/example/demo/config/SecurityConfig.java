@@ -22,11 +22,10 @@ import io.swagger.v3.oas.models.servers.Server;
 
 import java.util.Arrays;
 import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
-
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -37,7 +36,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-         configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:8080",
                 "http://127.0.0.1:3000",
@@ -51,26 +50,17 @@ public class SecurityConfig {
                 "https://127.0.0.1:3000"
         ));
 
-        // ✅ Các method được phép gọi
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-
-        // ✅ Các header được phép gửi
         configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
-
-        // ✅ Cho phép gửi cookie/token kèm request
         configuration.setAllowCredentials(true);
-
-        // ✅ Cho phép header Authorization trong response
         configuration.setExposedHeaders(List.of("Authorization"));
 
-        // ✅ Áp dụng cho toàn bộ route
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
     }
 
-    // Cấu hình Security
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -80,9 +70,10 @@ public class SecurityConfig {
 
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.disable()) // Tắt CSRF vì đang dùng JWT
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+
                         // Swagger & public endpoints
                         .requestMatchers(
                                 "/swagger-ui/**",
@@ -90,14 +81,28 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/api-docs/**"
                         ).permitAll()
+
                         // Public APIs
                         .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**","/api/auth/forgot/**").permitAll()
-                        // OPTIONS request cho preflight
-                        .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
+
+                        //   Cho phép OPTIONS trước để tránh lỗi CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // OPTIONS & test drive
+                        .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // (GIỮ NGUYÊN)
+
+                        // Payments
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
+
+                        // Dealers
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
+
+                        //  Yêu cầu JWT cho Installment API
+                        .requestMatchers("/api/installments/**").authenticated()
+
+                        // Các API còn lại
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
