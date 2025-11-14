@@ -24,9 +24,9 @@ public class VehicleType {
     private String description;
 
     @Column(name = "status", nullable = false)
-    private String status; // e.g. ACTIVE, INACTIVE
+    private String status;
 
-    // Quan hệ ngược với Vehicle - THÊM @JsonIgnore
+
     @OneToMany(mappedBy = "vehicleType", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Vehicle> vehicles;

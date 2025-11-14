@@ -201,7 +201,7 @@ public class PaymentProcessingService {
     public BigDecimal getTotalPaidAmountByOrder(Integer orderId) {
         return paymentRepository.getTotalPaidAmountByOrderId(orderId);
     }
-    @Transactional
+
     public Payment processPaymentWithPercentage(PaymentRequestDTO paymentRequest) {
         try {
             log.info("Processing payment with percentage - Order: {}, Method: {}, Percentage: {}%",
