@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,20 +74,13 @@ public class QuoteServiceImpl implements QuoteService {
                     quoteDTO.getCustomerId(), quoteDTO.getCreatorRole(), quoteDTO.getDealerId());
 
             validateUniqueVehicleIds(quoteDTO);
-
-            // Validate user và dealer
             User creator = validateUserAndDealer(quoteDTO);
-
-            // Validate customer (cho phép null)
             validateCustomer(quoteDTO);
+            validateCustomerDebt(quoteDTO.getCustomerId());
 
-            // Tạo quote entity
             Quote quote = createQuoteEntity(quoteDTO);
-
-            // Xử lý quote details và tính toán tổng tiền
             processQuoteDetails(quoteDTO, quote);
 
-            // Lưu quote
             Quote savedQuote = quoteRepository.save(quote);
 
             log.info("Quote created successfully - ID: {}, Creator Role: {}, User ID: {}, Customer ID: {}, Total Amount: {}",
@@ -95,10 +89,32 @@ public class QuoteServiceImpl implements QuoteService {
 
             return convertToResponseDTO(savedQuote);
 
+        } catch (RuntimeException e) {
+            log.error("Error creating quote: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error("Error creating quote: {}", e.getMessage(), e);
-            throw new RuntimeException("Lỗi server khi tạo báo giá: " + e.getMessage());
+            throw new RuntimeException("Lỗi server khi tạo báo giá");
         }
+    }
+
+    private void validateCustomerDebt(Integer customerId) {
+        if (customerId == null) {
+            return;
+        }
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+        BigDecimal currentDebt = customer.getTotalDebt();
+        BigDecimal debtLimit = new BigDecimal("5000000000");
+        if (currentDebt != null && currentDebt.compareTo(debtLimit) > 0) {
+            throw new RuntimeException("Không thể tạo báo giá do bạn đã nợ quá 5 tỷ");
+        }
+    }
+
+    private String formatCurrency(BigDecimal amount) {
+        if (amount == null) return "0";
+        DecimalFormat formatter = new DecimalFormat("#,###");
+        return formatter.format(amount);
     }
 
     @Override
@@ -132,21 +148,13 @@ public class QuoteServiceImpl implements QuoteService {
     @Override
     @Transactional
     public void deleteQuote(Integer id) {
-        try {
-            Quote quote = quoteRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
-
-            // Delete quote details first
-            quoteDetailRepository.deleteByQuoteId(id);
-
-            // Delete quote
-            quoteRepository.delete(quote);
-            log.info("Quote deleted successfully - ID: {}", id);
-
-        } catch (Exception e) {
-            log.error("Error deleting quote ID {}: {}", id, e.getMessage(), e);
-            throw new RuntimeException("Lỗi server khi xóa báo giá: " + e.getMessage());
+        if (!quoteRepository.existsById(id)) {
+            throw new RuntimeException("Không tìm thấy báo giá với ID: " + id);
         }
+        quoteDetailRepository.deleteByQuoteId(id);
+        quoteRepository.deleteById(id);
+
+        log.info("Quote deleted successfully - ID: {}", id);
     }
 
     @Override
