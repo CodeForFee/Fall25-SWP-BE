@@ -10,7 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/quotes")
@@ -48,8 +50,13 @@ public class QuoteController {
 
     @PostMapping
     @Operation(summary = "Tạo báo giá mới")
-    public ResponseEntity<QuoteResponseDTO> createQuote(@RequestBody QuoteDTO quoteDTO) {
-        return ResponseEntity.ok(quoteService.createQuote(quoteDTO));
+    public ResponseEntity<?> createQuote(@RequestBody QuoteDTO quoteDTO) {
+        try {
+            QuoteResponseDTO response = quoteService.createQuote(quoteDTO);
+            return ResponseEntity.ok(response); 
+        } catch (RuntimeException e) {
+            return ResponseEntity.ok(Collections.singletonMap("error", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
