@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -14,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDTO {
+
     private Integer quoteId;
     private Integer customerId;
     private Integer dealerId;
@@ -28,4 +30,24 @@ public class OrderDTO {
     private BigDecimal paidAmount;
     private String createdByRole;
     private List<OrderDetailDTO> orderDetails;
+
+    // ====== FIELD MÌNH THÊM ======
+
+    // ID đơn hàng – cần cho portal
+    private Integer orderId;
+
+    // Tổng giá trị đơn
+    private BigDecimal totalAmount;
+
+    // Số tiền còn lại phải trả
+    private BigDecimal remainingAmount;
+
+    // Ngày thanh toán gần nhất
+    private LocalDateTime lastPaymentDate;
+
+    // Số tháng trả góp (nếu phương thức là INSTALLMENT)
+    private Integer installmentMonths;
+
+    // Danh sách lịch sử thanh toán
+    private List<PaymentDTO> payments;
 }

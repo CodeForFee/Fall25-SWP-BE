@@ -50,7 +50,7 @@ public class SecurityConfig {
                 "https://127.0.0.1:3000"
         ));
 
-        // THÊM DÒNG NÀY 
+        // THÊM DÒNG NÀY
         configuration.addAllowedOriginPattern("*");
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
