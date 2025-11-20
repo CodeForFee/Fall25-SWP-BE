@@ -79,7 +79,6 @@ public class CustomerPortalService {
                     dto.setStatus(p.getStatus() != null ? p.getStatus().name() : null);
                     dto.setPaymentMethod(p.getPaymentMethod() != null ? p.getPaymentMethod().name() : null);
                     dto.setPaymentPercentage(p.getPaymentPercentage());
-                    dto.setNotes(p.getNotes());
                     dto.setCreatedAt(p.getCreatedAt());
                     return dto;
                 })
@@ -114,7 +113,6 @@ public class CustomerPortalService {
             dto.setDueDate(s.getDueDate());
             dto.setStatus(s.getStatus().name());
             dto.setPaidDate(s.getPaidDate());
-            dto.setNote(s.getNote());
             return dto;
         }).collect(Collectors.toList());
 
@@ -123,11 +121,7 @@ public class CustomerPortalService {
         OrderDTO dto = new OrderDTO();
 
         dto.setOrderId(o.getId());
-        dto.setCustomerId(o.getCustomerId());
-        dto.setDealerId(o.getDealerId());
         dto.setOrderDate(o.getOrderDate());
-
-        dto.setStatus(o.getStatus() != null ? o.getStatus().name() : null);
         dto.setPaymentPercentage(o.getPaymentPercentage());
         dto.setPaymentStatus(o.getPaymentStatus() != null ? o.getPaymentStatus().name() : null);
         dto.setPaymentMethod(o.getPaymentMethod() != null ? o.getPaymentMethod().name() : null);

@@ -9,14 +9,11 @@ import java.time.LocalDate;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class InstallmentScheduleDTO {
-
-    private Integer id;               // ID của kỳ trả góp
-    private Integer installmentNumber; // Số kỳ
-    private BigDecimal amount;         // Số tiền kỳ này phải trả
-    private LocalDate dueDate;         // Hạn trả
-    private LocalDate paidDate;        // Ngày đã trả (nếu có)
-    private String status;             // PENDING | PAID | OVERDUE
-    private String note;               // Ghi chú thêm
+    private Integer installmentNumber;
+    private BigDecimal amount;
+    private LocalDate dueDate;
+    private String status;
+    private LocalDate paidDate;
 }
+
