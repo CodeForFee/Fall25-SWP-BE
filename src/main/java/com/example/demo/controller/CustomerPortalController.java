@@ -20,7 +20,8 @@ public class CustomerPortalController {
 
     private final CustomerPortalService portalService;
 
-    @GetMapping
+    @GetMapping("")
+
     @Operation(
             summary = "Tra cứu thông tin khách hàng",
             description = """
