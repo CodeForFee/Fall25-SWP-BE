@@ -101,8 +101,7 @@ public class SecurityConfig {
 
                         // -------------------------------
                         // CUSTOMER PORTAL
-                        .requestMatchers("/api/customer/portal").permitAll()
-                        .requestMatchers("/api/customer/portal/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/customer/portal").permitAll()
                         // -------------------------------
 
                         // Protected APIs
