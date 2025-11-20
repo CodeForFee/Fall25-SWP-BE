@@ -50,17 +50,11 @@ public class SecurityConfig {
                 "https://127.0.0.1:3000"
         ));
 
-        // Allow wildcard domain
         configuration.addAllowedOriginPattern("*");
-
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-
-        // allow any header
         configuration.addAllowedHeader("*");
-
         configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
         configuration.setAllowCredentials(true);
-
         configuration.addExposedHeader("*");
         configuration.setExposedHeaders(List.of("Authorization"));
 
@@ -83,6 +77,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
 
+                        // Swagger
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -90,13 +85,13 @@ public class SecurityConfig {
                                 "/api-docs/**"
                         ).permitAll()
 
+                        // Public APIs
                         .requestMatchers("/api/users/**",
                                 "/api/auth/login",
                                 "/api/vehicles/**",
                                 "/api/auth/forgot/**").permitAll()
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
                         .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
 
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
@@ -104,12 +99,13 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
 
-                        // ----------------------------------------
-                        //  CUSTOMER PORTAL
+                        // -------------------------------
+                        // CUSTOMER PORTAL 
+                        .requestMatchers("/api/customer/portal").permitAll()
                         .requestMatchers("/api/customer/portal/**").permitAll()
-                        // ----------------------------------------
+                        // -------------------------------
 
-                        // Installments (require JWT)
+                        // Protected APIs
                         .requestMatchers("/api/installments/**").authenticated()
 
                         .anyRequest().authenticated()
