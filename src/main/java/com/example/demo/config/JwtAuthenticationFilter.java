@@ -34,20 +34,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String path = request.getServletPath();
-
-        //
-        // getServletPath() KHÔNG CHÍNH XÁC TRÊN PRODUCTION → dùng getRequestURI()
         String uri = request.getRequestURI();
+
+        //  THÊM LOG ĐỂ XEM ĐƯỜNG DẪN THỰC TẾ SERVER NHẬN ĐƯỢC
+        log.warn("### REQUEST URL = {}", request.getRequestURL());
+        log.warn("### REQUEST URI = {}", uri);
+        log.warn("### SERVLET PATH = {}", path);
 
         //  BYPASS JWT CHO CUSTOMER PORTAL
         if (uri.equals("/api/customer/portal") || uri.startsWith("/api/customer/portal")) {
+            log.warn("### BYPASS BY URI");
             filterChain.doFilter(request, response);
             return;
         }
 
-        // (GIỮ NGUYÊN CODE CŨ)
-        //  JWT FILTER CHO CUSTOMER PORTAL
+
         if (path.startsWith("/api/customer/portal")) {
+            log.warn("### BYPASS BY SERVLET PATH");
             filterChain.doFilter(request, response);
             return;
         }
