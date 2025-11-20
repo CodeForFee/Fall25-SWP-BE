@@ -100,7 +100,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
 
                         // -------------------------------
-                        // CUSTOMER PORTAL 
+                        // CUSTOMER PORTAL
                         .requestMatchers("/api/customer/portal").permitAll()
                         .requestMatchers("/api/customer/portal/**").permitAll()
                         // -------------------------------
