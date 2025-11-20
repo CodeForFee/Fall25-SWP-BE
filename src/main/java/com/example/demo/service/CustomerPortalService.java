@@ -89,21 +89,15 @@ public class CustomerPortalService {
         // Convert Order -> OrderDTO
         OrderDTO dto = new OrderDTO();
 
-        // ====== FIELD GỐC ======
-        dto.setQuoteId(o.getQuoteId());
+        
         dto.setCustomerId(o.getCustomerId());
         dto.setDealerId(o.getDealerId());
-        dto.setUserId(o.getUserId());
         dto.setOrderDate(o.getOrderDate());
-        dto.setStatus(o.getStatus().name());
         dto.setPaymentPercentage(o.getPaymentPercentage());
         dto.setPaymentStatus(o.getPaymentStatus() != null ? o.getPaymentStatus().name() : null);
         dto.setPaymentMethod(o.getPaymentMethod() != null ? o.getPaymentMethod().name() : null);
-        dto.setPaymentNotes(o.getPaymentNotes());
-        dto.setNotes(o.getNotes());
         dto.setPaidAmount(o.getPaidAmount());
-        dto.setCreatedByRole(null);        // bạn chưa gửi trường này từ entity
-        dto.setOrderDetails(null);         // bạn chưa gửi OrderDetailDTO
+
 
         // ====== FIELD MỚI ======
         dto.setOrderId(o.getId());
