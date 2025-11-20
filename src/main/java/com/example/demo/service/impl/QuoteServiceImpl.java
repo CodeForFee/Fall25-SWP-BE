@@ -148,13 +148,39 @@ public class QuoteServiceImpl implements QuoteService {
     @Override
     @Transactional
     public void deleteQuote(Integer id) {
-        if (!quoteRepository.existsById(id)) {
-            throw new RuntimeException("Không tìm thấy báo giá với ID: " + id);
-        }
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo giá với ID: " + id));
+
+        Integer customerId = quote.getCustomerId();
         quoteDetailRepository.deleteByQuoteId(id);
         quoteRepository.deleteById(id);
 
         log.info("Quote deleted successfully - ID: {}", id);
+        if (customerId != null) {
+            deleteCustomerIfNew(customerId);
+        }
+    }
+
+    private void deleteCustomerIfNew(Integer customerId) {
+        try {
+            Customer customer = customerRepository.findById(customerId)
+                    .orElse(null);
+
+            if (customer != null) {
+                boolean isNewCustomer = (customer.getTotalSpent() == null || customer.getTotalSpent().compareTo(BigDecimal.ZERO) == 0) &&
+                        (customer.getTotalDebt() == null || customer.getTotalDebt().compareTo(BigDecimal.ZERO) == 0);
+
+                if (isNewCustomer) {
+                    List<Quote> remainingQuotes = quoteRepository.findByCustomerId(customerId);
+                    if (remainingQuotes.isEmpty()) {
+                        customerRepository.delete(customer);
+                        log.info("Auto-deleted new customer - ID: {}, Name: {}", customerId, customer.getFullName());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not auto-delete customer ID {}: {}", customerId, e.getMessage());
+        }
     }
 
     @Override
