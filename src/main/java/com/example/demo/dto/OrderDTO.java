@@ -50,4 +50,16 @@ public class OrderDTO {
 
     // Danh sách lịch sử thanh toán
     private List<PaymentDTO> payments;
+
+    private Integer totalInstallments;
+    private Integer paidInstallments;
+    private Integer remainingInstallments;
+    private Integer overdueInstallments;
+
+    private LocalDate nextDueDate;
+    private Integer nextInstallmentNumber;
+
+    // Danh sách đầy đủ các kỳ trả góp
+    private List<InstallmentScheduleDTO> installmentSchedules;
+
 }
