@@ -55,13 +55,5 @@ public class AuditLogController {
         return ResponseEntity.ok(auditLogService.getLogsByAction(action, page, size));
     }
 
-    @GetMapping("/entity/{entityType}/{entityId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Lấy lịch sử thay đổi của entity", description = "Lấy lịch sử thay đổi của một entity cụ thể")
-    public ResponseEntity<List<AuditLogResponseDTO>> getEntityHistory(
-            @PathVariable String entityType,
-            @PathVariable String entityId
-    ) {
-        return ResponseEntity.ok(auditLogService.getEntityHistory(entityType, entityId));
-    }
+    
 }
