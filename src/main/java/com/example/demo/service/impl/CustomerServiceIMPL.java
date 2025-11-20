@@ -9,6 +9,7 @@ import com.example.demo.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -117,10 +118,16 @@ public class CustomerServiceIMPL implements CustomerService {
     }
 
     @Override
+    @Transactional
     public void deleteCustomer(Integer id) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+        if (!customer.getQuotes().isEmpty()) {
+            throw new RuntimeException("Không thể xóa khách hàng vì đang có báo giá liên quan");
+        }
+
         customerRepository.delete(customer);
+        log.info("Customer deleted successfully - ID: {}, Name: {}", id, customer.getFullName());
     }
 
     @Override
