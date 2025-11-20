@@ -34,6 +34,7 @@ public class DebtServiceImpl implements DebtService {
                         .totalDebt(c.getTotalDebt())
                         .isVip(c.getIsVip())
                         .dealerName(c.getDealer() != null ? c.getDealer().getName() : "Không xác định")
+                        .dealerId(c.getDealerId())
                         .build())
                 .collect(Collectors.toList());
     }

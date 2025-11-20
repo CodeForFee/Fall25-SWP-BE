@@ -17,4 +17,6 @@ public class CustomerDebtInfo {
     private BigDecimal totalDebt;
     private Boolean isVip;
     private String dealerName;
+    private Integer dealerId;
+
 }
