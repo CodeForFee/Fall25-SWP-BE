@@ -35,6 +35,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String path = request.getServletPath();
 
+        //
+        // getServletPath() KHÔNG CHÍNH XÁC TRÊN PRODUCTION → dùng getRequestURI()
+        String uri = request.getRequestURI();
+
+        //  BYPASS JWT CHO CUSTOMER PORTAL
+        if (uri.equals("/api/customer/portal") || uri.startsWith("/api/customer/portal")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // (GIỮ NGUYÊN CODE CŨ)
         //  JWT FILTER CHO CUSTOMER PORTAL
         if (path.startsWith("/api/customer/portal")) {
             filterChain.doFilter(request, response);
