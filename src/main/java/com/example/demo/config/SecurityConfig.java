@@ -50,18 +50,17 @@ public class SecurityConfig {
                 "https://127.0.0.1:3000"
         ));
 
-        // THÊM DÒNG NÀY
+        // Allow wildcard domain
         configuration.addAllowedOriginPattern("*");
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 
-        // THÊM DÒNG NÀY – Cho phép mọi header
+        // allow any header
         configuration.addAllowedHeader("*");
 
         configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
         configuration.setAllowCredentials(true);
 
-        // THÊM EXPOSING HEADER
         configuration.addExposedHeader("*");
         configuration.setExposedHeaders(List.of("Authorization"));
 
@@ -91,20 +90,26 @@ public class SecurityConfig {
                                 "/api-docs/**"
                         ).permitAll()
 
-                        .requestMatchers("/api/users/**", "/api/auth/login","/api/vehicles/**","/api/auth/forgot/**").permitAll()
-
+                        .requestMatchers("/api/users/**",
+                                "/api/auth/login",
+                                "/api/vehicles/**",
+                                "/api/auth/forgot/**").permitAll()
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         .requestMatchers(HttpMethod.POST, "/api/test-drive/schedule").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/dealers").permitAll()
 
-                        // Installments (yêu cầu JWT)
+                        // ----------------------------------------
+                        //  CUSTOMER PORTAL
+                        .requestMatchers("/api/customer/portal/**").permitAll()
+                        // ----------------------------------------
+
+                        // Installments (require JWT)
                         .requestMatchers("/api/installments/**").authenticated()
 
                         .anyRequest().authenticated()
