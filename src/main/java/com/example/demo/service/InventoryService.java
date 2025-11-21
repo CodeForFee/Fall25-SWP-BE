@@ -44,30 +44,30 @@ public class InventoryService {
         return inventoryRepository.save(factoryInventory);
     }
 
-
     @Transactional
-    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer initialQuantity) {
+    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer quantity) {
         var dealer = dealerRepository.findById(dealerId)
                 .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
         var vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found: " + vehicleId));
-
-
         var existingInventory = inventoryRepository.findByDealerIdAndVehicleIdAndInventoryType(
                 dealerId, vehicleId, Inventory.InventoryType.DEALER);
 
         if (existingInventory.isPresent()) {
-            return existingInventory.get();
+            throw new RuntimeException("Vehicle already exists in dealer inventory: " + vehicleId);
         }
 
         Inventory dealerInventory = Inventory.builder()
                 .dealer(dealer)
                 .vehicle(vehicle)
-                .availableQuantity(initialQuantity)
+                .availableQuantity(1)
                 .reservedQuantity(0)
                 .inventoryType(Inventory.InventoryType.DEALER)
                 .lastUpdated(LocalDateTime.now())
                 .build();
+
+        log.info("Added unique vehicle to dealer inventory - Dealer: {}, Vehicle: {}",
+                dealerId, vehicleId);
 
         return inventoryRepository.save(dealerInventory);
     }

@@ -29,13 +29,12 @@ public class InventoryController {
         return ResponseEntity.ok(convertInventoryToMap(inventory));
     }
 
-    // Tạo kho đại lý
+
     @PostMapping("/dealer")
     public ResponseEntity<Map<String, Object>> createDealerInventory(
             @RequestParam Integer dealerId,
-            @RequestParam Integer vehicleId,
-            @RequestParam Integer quantity) {
-        Inventory inventory = inventoryService.createDealerInventory(dealerId, vehicleId, quantity);
+            @RequestParam Integer vehicleId) {
+        Inventory inventory = inventoryService.createDealerInventory(dealerId, vehicleId, 1);
         return ResponseEntity.ok(convertInventoryToMap(inventory));
     }
 
