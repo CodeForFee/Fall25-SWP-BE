@@ -11,7 +11,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,30 +47,30 @@ public class InventoryService {
         return inventoryRepository.save(factoryInventory);
     }
 
+
     @Transactional
-    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer quantity) {
+    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer initialQuantity) {
         var dealer = dealerRepository.findById(dealerId)
                 .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
         var vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found: " + vehicleId));
+
+
         var existingInventory = inventoryRepository.findByDealerIdAndVehicleIdAndInventoryType(
                 dealerId, vehicleId, Inventory.InventoryType.DEALER);
 
         if (existingInventory.isPresent()) {
-            throw new RuntimeException("Vehicle already exists in dealer inventory: " + vehicleId);
+            return existingInventory.get();
         }
 
         Inventory dealerInventory = Inventory.builder()
                 .dealer(dealer)
                 .vehicle(vehicle)
-                .availableQuantity(1)
+                .availableQuantity(initialQuantity)
                 .reservedQuantity(0)
                 .inventoryType(Inventory.InventoryType.DEALER)
                 .lastUpdated(LocalDateTime.now())
                 .build();
-
-        log.info("Added unique vehicle to dealer inventory - Dealer: {}, Vehicle: {}",
-                dealerId, vehicleId);
 
         return inventoryRepository.save(dealerInventory);
     }
