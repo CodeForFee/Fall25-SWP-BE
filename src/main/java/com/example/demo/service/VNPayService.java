@@ -40,9 +40,9 @@ public class VNPayService {
     private String vnpaySecretKey;
     @Value("${vnpay.return-url}")
     private String vnpayReturnUrl;
-    @Value("${vnpay.return-url.success:http://localhost:5173/payment-result?status=success}")
+    @Value("${vnpay.return-url.success:https://electric-vehicle-dealer-management.vercel.app//payment-result?status=success}")
     private String vnpayReturnUrlSuccess;
-    @Value("${vnpay.return-url.fail:http://localhost:5173/payment-result?status=fail}")
+    @Value("${vnpay.return-url.fail:https://electric-vehicle-dealer-management.vercel.app//payment-result?status=fail}")
     private String vnpayReturnUrlFail;
 
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
