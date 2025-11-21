@@ -107,7 +107,6 @@ public class VehicleServiceImpl implements VehicleService {
         return toDto(repo.save(v));
     }
 
-    // ===================== PRIVATE METHODS =====================
 
     private String convertMapToJson(Map<String, Object> map) {
         try {
@@ -131,6 +130,8 @@ public class VehicleServiceImpl implements VehicleService {
         r.setModelName(v.getModelName());
         r.setBrand(v.getBrand());
         r.setYearOfManufacture(v.getYearOfManufacture());
+        r.setVin(v.getVin());
+        r.setEngineNumber(v.getEngineNumber());
 
         if (v.getVehicleType() != null) {
             VehicleTypeResponseDTO vt = new VehicleTypeResponseDTO();
@@ -141,7 +142,6 @@ public class VehicleServiceImpl implements VehicleService {
             r.setVehicleType(vt);
         }
 
-        
         r.setSpecifications(convertJsonToMap(v.getSpecifications()));
         r.setStatus(v.getStatus());
         r.setBatteryCapacity(v.getBatteryCapacity());

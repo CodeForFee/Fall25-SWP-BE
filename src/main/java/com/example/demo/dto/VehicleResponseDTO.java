@@ -12,6 +12,8 @@ public class VehicleResponseDTO {
     private String brand;
     private Integer yearOfManufacture;
     private VehicleTypeResponseDTO vehicleType;
+    private String vin;
+    private String engineNumber;
     private Map<String, Object> specifications;
     private String status;
     private BigDecimal batteryCapacity;
