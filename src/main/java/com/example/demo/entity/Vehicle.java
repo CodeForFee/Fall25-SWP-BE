@@ -29,10 +29,14 @@ public class Vehicle {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_type_id")
-    @JsonIgnore // 🔥 THÊM NÀY ĐỂ NGĂN VÒNG LẶP
+    @JsonIgnore
     private VehicleType vehicleType;
 
-    // Chuyển từ Map<String, Object> sang String để lưu JSON thô
+    @Column(name = "vin", unique = true, nullable = false, length = 7)
+    private String vin;
+
+    @Column(name = "engine_number", unique = true, nullable = false, length = 7)
+    private String engineNumber;
 
     @Column(name = "specifications", columnDefinition = "TEXT")
     private String specifications;
@@ -47,25 +51,45 @@ public class Vehicle {
     private BigDecimal listedPrice;
 
     @Column(name = "version", columnDefinition = "TEXT")
-    private String versionJson; // JSON text for versions / trims
+    private String versionJson;
 
     @Column(name = "available_colors", columnDefinition = "TEXT")
-    private String availableColorsJson; // JSON array text
+    private String availableColorsJson;
 
-    // Quan hệ ngược với OrderDetail - THÊM @JsonIgnore
     @OneToMany(mappedBy = "vehicle", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<OrderDetail> orderDetails;
 
-    // Quan hệ ngược với QuoteDetail - THÊM @JsonIgnore
     @OneToMany(mappedBy = "vehicle", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<QuoteDetail> quoteDetails;
 
-    // 🔥 THÊM: Quan hệ ngược với Inventory - THÊM @JsonIgnore
     @OneToMany(mappedBy = "vehicle", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Inventory> inventories;
+
+    @PrePersist
+    public void generateUniqueNumbers() {
+        if (this.vin == null) {
+            this.vin = generateRandomAlphanumeric(7);
+        }
+        if (this.engineNumber == null) {
+            this.engineNumber = generateRandomAlphanumeric(7);
+        }
+        if (this.status == null) {
+            this.status = "ACTIVE";
+        }
+    }
+
+    private String generateRandomAlphanumeric(int length) {
+        String alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            int index = (int) (Math.random() * alphanumeric.length());
+            sb.append(alphanumeric.charAt(index));
+        }
+        return sb.toString();
+    }
 
     // Helper methods
     public boolean isActive() {
@@ -93,7 +117,9 @@ public class Vehicle {
         return this.isActive() &&
                 this.modelName != null && !this.modelName.trim().isEmpty() &&
                 this.brand != null && !this.brand.trim().isEmpty() &&
-                this.listedPrice != null && this.listedPrice.compareTo(BigDecimal.ZERO) > 0;
+                this.listedPrice != null && this.listedPrice.compareTo(BigDecimal.ZERO) > 0 &&
+                this.vin != null && !this.vin.trim().isEmpty() &&
+                this.engineNumber != null && !this.engineNumber.trim().isEmpty();
     }
 
     // Static factory method
@@ -131,6 +157,8 @@ public class Vehicle {
                 ", modelName='" + modelName + '\'' +
                 ", brand='" + brand + '\'' +
                 ", yearOfManufacture=" + yearOfManufacture +
+                ", vin='" + vin + '\'' +
+                ", engineNumber='" + engineNumber + '\'' +
                 ", status='" + status + '\'' +
                 ", listedPrice=" + listedPrice +
                 '}';
