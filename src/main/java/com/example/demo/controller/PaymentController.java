@@ -54,8 +54,8 @@ public class PaymentController {
     private String vnpayUrl;
 
     // SET MẶC ĐỊNH TRONG CODE - KHÔNG cần config
-    private final String vnpayReturnUrlSuccess = "http://localhost:5173/payment-result?status=success";
-    private final String vnpayReturnUrlFail = "http://localhost:5173/payment-result?status=fail";
+    private final String vnpayReturnUrlSuccess = "https://electric-vehicle-dealer-management.vercel.app/payment-result?status=success";
+    private final String vnpayReturnUrlFail = "https://electric-vehicle-dealer-management.vercel.app/payment-result?status=fail";
 
     @PostMapping("/vnpay/create")
     public ResponseEntity<?> createVNPayPayment(
