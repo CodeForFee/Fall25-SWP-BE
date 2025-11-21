@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class InstallmentScheduleDTO {
     private Integer installmentNumber;
     private BigDecimal amount;

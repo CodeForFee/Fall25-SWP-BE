@@ -63,7 +63,7 @@ public class InstallmentServiceIMPL implements InstallmentService {
             totalInterest = totalInterest.add(interest);
 
             schedule.add(InstallmentScheduleDTO.builder()
-                    .id(null)
+
                     .installmentNumber(i)
                     .amount(totalPayment)
                     .dueDate(firstDue.plusMonths(i - 1))
