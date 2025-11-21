@@ -33,11 +33,23 @@ public class InventoryController {
     @PostMapping("/dealer")
     public ResponseEntity<Map<String, Object>> createDealerInventory(
             @RequestParam Integer dealerId,
-            @RequestParam Integer vehicleId,
-            @RequestParam Integer quantity) {
-        Inventory inventory = inventoryService.createDealerInventory(dealerId, vehicleId, quantity);
+            @RequestParam Integer vehicleId) {
+        Inventory inventory = inventoryService.createDealerInventory(dealerId, vehicleId, 1);
         return ResponseEntity.ok(convertInventoryToMap(inventory));
     }
+
+    @GetMapping("/dealer/{dealerId}/summary")
+    public ResponseEntity<Map<String, Integer>> getDealerInventorySummary(@PathVariable Integer dealerId) {
+        Map<String, Integer> summary = inventoryService.getDealerInventorySummary(dealerId);
+        return ResponseEntity.ok(summary);
+    }
+
+    @GetMapping("/dealer/{dealerId}/details")
+    public ResponseEntity<List<Map<String, Object>>> getDealerInventoryDetails(@PathVariable Integer dealerId) {
+        List<Map<String, Object>> details = inventoryService.getDealerInventoryDetails(dealerId);
+        return ResponseEntity.ok(details);
+    }
+
 
     // Lấy tồn kho hãng
     @GetMapping("/factory")
@@ -88,6 +100,9 @@ public class InventoryController {
             vehicleMap.put("status", inventory.getVehicle().getStatus());
             vehicleMap.put("listedPrice", inventory.getVehicle().getListedPrice());
             vehicleMap.put("batteryCapacity", inventory.getVehicle().getBatteryCapacity());
+            vehicleMap.put("vin", inventory.getVehicle().getVin());
+            vehicleMap.put("engineNumber", inventory.getVehicle().getEngineNumber());
+
             result.put("vehicle", vehicleMap);
         }
 
