@@ -15,6 +15,8 @@ public class OrderDetailResponseDTO {
     private Integer id;
     private Integer orderId;
     private Integer vehicleId;
+    private String vin;
+    private String engineNumber;
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal totalAmount;

@@ -3,7 +3,6 @@ package com.example.demo.service;
 import com.example.demo.dto.PaymentRequestDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.Payment;
-import com.example.demo.entity.QuoteDetail;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.PaymentRepository;
 import com.example.demo.repository.QuoteDetailRepository;
@@ -16,7 +15,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +25,6 @@ public class PaymentProcessingService {
 
     private final PaymentRepository paymentRepository;
     private final VNPayService vnPayService;
-    private final InventoryService inventoryService;
     private final OrderRepository orderRepository;
     private final QuoteDetailRepository quoteDetailRepository;
     private final AuditLogService auditLogService;
@@ -65,7 +62,8 @@ public class PaymentProcessingService {
                 payment.setNotes("Payment successful via VNPay");
                 log.info("Payment completed: {}", payment.getId());
 
-                updateInventoryAfterSuccessfulPayment(payment);
+                log.info("✅ VNPay payment completed - Order: {}, Amount: {}, Inventory deduction postponed until delivery",
+                        payment.getOrderId(), payment.getAmount());
 
             } else {
                 payment.markAsFailed();
@@ -80,112 +78,6 @@ public class PaymentProcessingService {
         } catch (Exception e) {
             log.error("ERROR PROCESSING PAYMENT: {}", e.getMessage(), e);
             throw new RuntimeException("Payment processing error: " + e.getMessage(), e);
-        }
-    }
-
-    protected void updateInventoryAfterSuccessfulPayment(Payment payment) {
-        try {
-            Order order = orderRepository.findById(payment.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Order not found: " + payment.getOrderId()));
-
-            if (order.getStatus() == Order.OrderStatus.COMPLETED) {
-                log.info("🔄 Inventory already updated for order: {}, skipping...", order.getId());
-                return;
-            }
-            log.info("UPDATING INVENTORY AFTER PAYMENT - Payment: {}, Order: {}, Percentage: {}%",
-                    payment.getId(), order.getId(), payment.getPaymentPercentage());
-
-            if (order.getCustomerId() == null) {
-                transferInventoryFromFactoryToDealer(order);
-                log.info("IMPORT FLOW - Factory → Dealer for order: {}", order.getId());
-            } else {
-                decreaseDealerInventoryForCustomerPurchase(order);
-                log.info("SALES FLOW - Dealer inventory decreased for order: {}, Customer: {}",
-                        order.getId(), order.getCustomerId());
-            }
-
-            updateOrderStatusAfterPayment(order);
-
-            Map<String, Object> auditData = new HashMap<>();
-            auditData.put("paymentId", payment.getId());
-            auditData.put("dealerId", order.getDealerId());
-            auditData.put("customerId", order.getCustomerId()); // Có thể null
-            auditData.put("paymentPercentage", payment.getPaymentPercentage());
-
-            auditLogService.log("PAYMENT_INVENTORY_UPDATE", "ORDER", order.getId().toString(), auditData);
-
-            log.info("INVENTORY UPDATED - Order: {}, Payment: {}%",
-                    order.getId(), payment.getPaymentPercentage());
-
-        } catch (Exception e) {
-            log.error("ERROR UPDATING INVENTORY AFTER PAYMENT: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to update inventory: " + e.getMessage(), e);
-        }
-    }
-
-    private void transferInventoryFromFactoryToDealer(Order order) {
-        try {
-            List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(order.getQuoteId());
-
-            if (quoteDetails.isEmpty()) {
-                throw new RuntimeException("No quote details found for order: " + order.getId());
-            }
-
-            for (QuoteDetail detail : quoteDetails) {
-                inventoryService.transferFactoryToDealer(
-                        order.getDealerId(),
-                        detail.getVehicleId(),
-                        detail.getQuantity()
-                );
-                log.info("FACTORY → DEALER - Dealer: {}, Vehicle: {}, Quantity: {}",
-                        order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
-            }
-        } catch (Exception e) {
-            log.error("Error transferring inventory from factory to dealer: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    private void decreaseDealerInventoryForCustomerPurchase(Order order) {
-        try {
-            List<QuoteDetail> quoteDetails = quoteDetailRepository.findByQuoteId(order.getQuoteId());
-
-            if (quoteDetails.isEmpty()) {
-                throw new RuntimeException("No quote details found for order: " + order.getId());
-            }
-
-            for (QuoteDetail detail : quoteDetails) {
-                inventoryService.deductDealerInventory(
-                        order.getDealerId(),
-                        detail.getVehicleId(),
-                        detail.getQuantity()
-                );
-                log.info(" DEALER → CUSTOMER - Dealer: {}, Vehicle: {}, Quantity: {}, Customer: {}",
-                        order.getDealerId(), detail.getVehicleId(), detail.getQuantity(), order.getCustomerId());
-            }
-        } catch (Exception e) {
-            log.error("Error decreasing dealer inventory: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    private void updateOrderStatusAfterPayment(Order order) {
-        try {
-            order.setStatus(Order.OrderStatus.COMPLETED);
-            if (order.getPaymentPercentage() != null && order.getPaymentPercentage() == 100) {
-                order.setPaymentStatus(Order.PaymentStatus.PAID);
-            } else {
-                order.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
-            }
-
-            orderRepository.save(order);
-
-            String orderType = order.getCustomerId() == null ? "IMPORT" : "SALES";
-            log.info("ORDER COMPLETED - Type: {}, Order: {}, Payment: {}",
-                    orderType, order.getId(), order.getPaymentStatus());
-        } catch (Exception e) {
-            log.error("Error updating order status: {}", e.getMessage(), e);
-            throw e;
         }
     }
 
@@ -229,10 +121,6 @@ public class PaymentProcessingService {
                     .build();
 
             payment = paymentRepository.save(payment);
-
-            if (paymentStatus == Payment.Status.COMPLETED) {
-                updateInventoryAfterSuccessfulPayment(payment);
-            }
 
             log.info("Payment processed successfully - ID: {}, Order: {}, Method: {}, Amount: {}, Status: {}",
                     payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount, paymentStatus);
@@ -282,8 +170,6 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            updateInventoryAfterSuccessfulPayment(payment);
-
             log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
                     payment.getId(), order.getId(), paymentAmount);
 
@@ -326,6 +212,41 @@ public class PaymentProcessingService {
         } catch (Exception e) {
             log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
+        }
+    }
+
+    public Payment createPaymentRecordOnly(PaymentRequestDTO paymentRequest) {
+        try {
+            log.info("Creating payment record only (no inventory deduction) - Order: {}, Method: {}, Percentage: {}%",
+                    paymentRequest.getOrderId(), paymentRequest.getPaymentMethod(), paymentRequest.getPaymentPercentage());
+
+            Order order = orderRepository.findById(paymentRequest.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .amount(paymentAmount)
+                    .paymentMethod(Payment.PaymentMethod.valueOf(paymentRequest.getPaymentMethod()))
+                    .paymentPercentage(paymentRequest.getPaymentPercentage())
+                    .status(Payment.Status.PENDING)
+                    .notes("Payment recorded at order creation - Inventory deduction postponed until delivery")
+                    .paymentDate(LocalDate.now())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            payment = paymentRepository.save(payment);
+
+            log.info("Payment record created (no inventory) - ID: {}, Order: {}, Method: {}, Amount: {}",
+                    payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount);
+
+            return payment;
+
+        } catch (Exception e) {
+            log.error("Error creating payment record: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create payment record: " + e.getMessage(), e);
         }
     }
 }

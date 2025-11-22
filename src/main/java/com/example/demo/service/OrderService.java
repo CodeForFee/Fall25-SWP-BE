@@ -14,6 +14,6 @@ public interface OrderService {
     OrderResponseDTO createOrder(OrderDTO orderDTO);
     OrderResponseDTO updateOrder(Integer id, OrderDTO orderDTO);
     void deleteOrder(Integer id);
-
+    OrderResponseDTO confirmDelivery(Integer orderId);
     List<OrderResponseDTO> getOrdersByCreatedByRole(String createdByRole);
 }

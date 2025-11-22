@@ -26,6 +26,12 @@ public class OrderDetail {
     @Column(name = "vehicle_id", nullable = false)
     private Integer vehicleId;
 
+    @Column(name = "vin", length = 50)
+    private String vin;
+
+    @Column(name = "engine_number", length = 50)
+    private String engineNumber;
+
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 

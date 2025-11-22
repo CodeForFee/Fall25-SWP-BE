@@ -53,7 +53,7 @@ public class Order {
     private BigDecimal remainingAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false,length = 20)
     private OrderStatus status;
 
     @Enumerated(EnumType.STRING)
@@ -127,11 +127,11 @@ public class Order {
 
     // ===== ENUMS =====
     public enum OrderStatus {
-        PENDING, APPROVED, COMPLETED, CANCELLED
+        PENDING, APPROVED, COMPLETED, CANCELLED,DELIVERED
     }
 
     public enum PaymentMethod {
-        CASH, TRANSFER, INSTALLMENT, CARD, VNPAY
+        CASH, TRANSFER, VNPAY
     }
 
     public enum OrderApprovalStatus {
