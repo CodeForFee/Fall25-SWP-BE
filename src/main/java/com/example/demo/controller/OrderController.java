@@ -71,4 +71,10 @@ public class OrderController {
         orderService.deleteOrder(id);
         return ResponseEntity.ok("Đơn hàng đã được xóa thành công");
     }
+
+    @PostMapping("/{orderId}/confirm-delivery")
+    @Operation(summary = "Xác nhận giao xe và trừ kho")
+    public ResponseEntity<OrderResponseDTO> confirmDelivery(@PathVariable Integer orderId) {
+        return ResponseEntity.ok(orderService.confirmDelivery(orderId));
+    }
 }

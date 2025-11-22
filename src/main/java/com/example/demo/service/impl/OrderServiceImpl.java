@@ -3,14 +3,9 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.OrderDTO;
 import com.example.demo.dto.OrderDetailResponseDTO;
 import com.example.demo.dto.OrderResponseDTO;
-import com.example.demo.entity.Order;
-import com.example.demo.entity.OrderDetail;
-import com.example.demo.entity.Quote;
-import com.example.demo.entity.QuoteDetail;
-import com.example.demo.repository.OrderDetailRepository;
-import com.example.demo.repository.OrderRepository;
-import com.example.demo.repository.QuoteDetailRepository;
-import com.example.demo.repository.QuoteRepository;
+import com.example.demo.entity.*;
+import com.example.demo.repository.*;
+import com.example.demo.service.InventoryService;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Hibernate;
@@ -37,6 +32,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderDetailRepository orderDetailRepository;
     private final QuoteDetailRepository quoteDetailRepository;
     private final QuoteRepository quoteRepository;
+    private final VehicleRepository vehicleRepository;
+    private final InventoryService  inventoryService;
 
     @Override
     public List<OrderResponseDTO> getAllOrders() {
@@ -87,22 +84,15 @@ public class OrderServiceImpl implements OrderService {
             Quote quote = quoteRepository.findById(orderDTO.getQuoteId())
                     .orElseThrow(() -> new RuntimeException("Quote not found: " + orderDTO.getQuoteId()));
 
-            // 🔥 FIX: Xử lý customerId có thể null
             Integer customerId = orderDTO.getCustomerId();
             if (customerId == null) {
-                customerId = quote.getCustomerId(); // Có thể vẫn null
+                customerId = quote.getCustomerId();
                 log.warn("CustomerId is null in orderDTO, using quote customerId: {}", customerId);
-            }
-
-            // 🔥 VALIDATE: Nếu cả quote và order đều không có customerId
-            if (customerId == null) {
-                log.info("Creating order without customer - Quote ID: {}", orderDTO.getQuoteId());
-                // Vẫn cho phép tạo order không có customer
             }
 
             Order order = new Order();
             order.setQuoteId(orderDTO.getQuoteId());
-            order.setCustomerId(customerId); // Có thể là null
+            order.setCustomerId(customerId);
             order.setDealerId(orderDTO.getDealerId());
             order.setUserId(orderDTO.getUserId());
             order.setOrderDate(orderDTO.getOrderDate() != null ? orderDTO.getOrderDate() : LocalDate.now());
@@ -124,6 +114,21 @@ public class OrderServiceImpl implements OrderService {
                 orderDetail.setQuantity(quoteDetail.getQuantity());
                 orderDetail.setUnitPrice(quoteDetail.getUnitPrice());
 
+                // LẤY THÔNG TIN VEHICLE VÀ GÁN VIN, ENGINE NUMBER
+                Vehicle vehicle = vehicleRepository.findById(quoteDetail.getVehicleId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy xe với ID: " + quoteDetail.getVehicleId()));
+
+                // KIỂM TRA VÀ GÁN VIN, ENGINE NUMBER
+                if (vehicle.getVin() == null || vehicle.getVin().trim().isEmpty()) {
+                    throw new RuntimeException("Xe với ID " + quoteDetail.getVehicleId() + " chưa có số khung (VIN)");
+                }
+                if (vehicle.getEngineNumber() == null || vehicle.getEngineNumber().trim().isEmpty()) {
+                    throw new RuntimeException("Xe với ID " + quoteDetail.getVehicleId() + " chưa có số máy (Engine Number)");
+                }
+
+                orderDetail.setVin(vehicle.getVin());
+                orderDetail.setEngineNumber(vehicle.getEngineNumber());
+
                 BigDecimal promotionDiscount = quoteDetail.getPromotionDiscount();
                 BigDecimal grossAmount = quoteDetail.getUnitPrice().multiply(BigDecimal.valueOf(quoteDetail.getQuantity()));
                 BigDecimal discountAmount = BigDecimal.ZERO;
@@ -139,6 +144,9 @@ public class OrderServiceImpl implements OrderService {
                 totalAmount = totalAmount.add(netAmount);
                 totalDiscount = totalDiscount.add(discountAmount);
                 orderDetails.add(orderDetail);
+
+                log.info("Đã gán thông tin xe - Vehicle ID: {}, VIN: {}, Engine: {}",
+                        vehicle.getId(), vehicle.getVin(), vehicle.getEngineNumber());
             }
 
             order.setTotalAmount(totalAmount);
@@ -172,9 +180,8 @@ public class OrderServiceImpl implements OrderService {
             }
             orderDetailRepository.saveAll(orderDetails);
 
-            log.info("Order created successfully - ID: {}, Quote ID: {}, Customer ID: {}",
-                    savedOrder.getId(), orderDTO.getQuoteId(), customerId);
-
+            log.info("Order created successfully - ID: {}, Quote ID: {}, Customer ID: {}, Total Vehicles: {}",
+                    savedOrder.getId(), orderDTO.getQuoteId(), customerId, orderDetails.size());
             return convertToResponseDTO(savedOrder);
 
         } catch (Exception e) {
@@ -182,6 +189,44 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Lỗi server khi tạo đơn hàng: " + e.getMessage());
         }
     }
+
+    @Override
+    @Transactional
+    public OrderResponseDTO confirmDelivery(Integer orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+
+        if (order.getStatus() != Order.OrderStatus.COMPLETED && order.getStatus() != Order.OrderStatus.APPROVED) {
+            throw new RuntimeException("Order must be COMPLETED or APPROVED before delivery confirmation");
+        }
+
+        List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(orderId);
+        for (OrderDetail detail : orderDetails) {
+            if (detail.getVin() == null || detail.getEngineNumber() == null) {
+                throw new RuntimeException("Vehicle VIN and Engine Number must be assigned before delivery");
+            }
+            boolean hasSufficientInventory = inventoryService.checkDealerInventory(
+                    order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
+
+            if (!hasSufficientInventory) {
+                throw new RuntimeException("Insufficient inventory for vehicle: " + detail.getVehicleId() +
+                        " in dealer: " + order.getDealerId());
+            }
+        }
+        for (OrderDetail detail : orderDetails) {
+            inventoryService.deductDealerInventory(order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
+
+            log.info("Deducted inventory for delivery - Order: {}, Vehicle: {}, Dealer: {}, VIN: {}, Quantity: {}",
+                    orderId, detail.getVehicleId(), order.getDealerId(), detail.getVin(), detail.getQuantity());
+        }
+        order.setStatus(Order.OrderStatus.DELIVERED);
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order delivered successfully - Order: {}", orderId);
+
+        return convertToResponseDTO(savedOrder);
+    }
+
 
     @Override
     @Transactional
@@ -304,6 +349,8 @@ public class OrderServiceImpl implements OrderService {
         dto.setQuantity(detail.getQuantity());
         dto.setUnitPrice(detail.getUnitPrice());
         dto.setTotalAmount(detail.getTotalAmount());
+        dto.setVin(detail.getVin());
+        dto.setEngineNumber(detail.getEngineNumber());
         return dto;
     }
 }

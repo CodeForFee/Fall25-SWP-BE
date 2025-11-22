@@ -65,6 +65,7 @@ public class PaymentProcessingService {
                 payment.setNotes("Payment successful via VNPay");
                 log.info("Payment completed: {}", payment.getId());
 
+                // 🔥 VNPay vẫn trừ kho vì đây là thanh toán thực tế đã hoàn thành
                 updateInventoryAfterSuccessfulPayment(payment);
 
             } else {
@@ -201,6 +202,7 @@ public class PaymentProcessingService {
     public BigDecimal getTotalPaidAmountByOrder(Integer orderId) {
         return paymentRepository.getTotalPaidAmountByOrderId(orderId);
     }
+
     @Transactional
     public Payment processPaymentWithPercentage(PaymentRequestDTO paymentRequest) {
         try {
@@ -230,9 +232,10 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            if (paymentStatus == Payment.Status.COMPLETED) {
-                updateInventoryAfterSuccessfulPayment(payment);
-            }
+            // 🔥 COMMENT DÒNG NÀY - KHÔNG TRỪ KHO KHI TẠO ORDER
+            // if (paymentStatus == Payment.Status.COMPLETED) {
+            //     updateInventoryAfterSuccessfulPayment(payment);
+            // }
 
             log.info("Payment processed successfully - ID: {}, Order: {}, Method: {}, Amount: {}, Status: {}",
                     payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount, paymentStatus);
@@ -282,7 +285,8 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            updateInventoryAfterSuccessfulPayment(payment);
+            // 🔥 COMMENT DÒNG NÀY - KHÔNG TRỪ KHO KHI TẠO ORDER
+            // updateInventoryAfterSuccessfulPayment(payment);
 
             log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
                     payment.getId(), order.getId(), paymentAmount);
@@ -318,6 +322,9 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
+            // 🔥 CHUYỂN KHOẢN CŨNG KHÔNG TRỪ KHO - Chỉ tạo payment record
+            // KHÔNG gọi updateInventoryAfterSuccessfulPayment vì status là PENDING
+
             log.info("Bank transfer payment processed - ID: {}, Order: {}, Amount: {}, Status: PENDING",
                     payment.getId(), order.getId(), paymentAmount);
 
@@ -326,6 +333,43 @@ public class PaymentProcessingService {
         } catch (Exception e) {
             log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
+        }
+    }
+
+    // 🔥 THÊM PHƯƠNG THỨC MỚI: Chỉ tạo payment record, không trừ kho
+    public Payment createPaymentRecordOnly(PaymentRequestDTO paymentRequest) {
+        try {
+            log.info("Creating payment record only (no inventory deduction) - Order: {}, Method: {}, Percentage: {}%",
+                    paymentRequest.getOrderId(), paymentRequest.getPaymentMethod(), paymentRequest.getPaymentPercentage());
+
+            Order order = orderRepository.findById(paymentRequest.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
+            // Luôn đặt status là PENDING để không trigger inventory deduction
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .amount(paymentAmount)
+                    .paymentMethod(Payment.PaymentMethod.valueOf(paymentRequest.getPaymentMethod()))
+                    .paymentPercentage(paymentRequest.getPaymentPercentage())
+                    .status(Payment.Status.PENDING) // 🔥 LUÔN PENDING để không trừ kho
+                    .notes("Payment recorded at order creation - Inventory deduction postponed until delivery")
+                    .paymentDate(LocalDate.now())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            payment = paymentRepository.save(payment);
+
+            log.info("Payment record created (no inventory) - ID: {}, Order: {}, Method: {}, Amount: {}",
+                    payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount);
+
+            return payment;
+
+        } catch (Exception e) {
+            log.error("Error creating payment record: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create payment record: " + e.getMessage(), e);
         }
     }
 }

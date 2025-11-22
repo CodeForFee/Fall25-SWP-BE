@@ -165,15 +165,14 @@ public class OrderWorkflowService {
         log.info("=== START approveOrder - orderId: {}", orderId);
 
         try {
-            if (!canApproveOrder(orderId)) {
-                log.warn("Cannot approve order {} - conditions not met", orderId);
-                handleInsufficientInventory(orderId);
-                return;
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            if (!order.canBeApproved()) {
+                throw new RuntimeException("Order cannot be approved. Current status: " +
+                        order.getApprovalStatus() + ", " + order.getStatus());
             }
             performOrderApproval(orderId, approvedBy, notes);
-
             log.info("=== END approveOrder successfully - orderId: {}", orderId);
-
         } catch (Exception e) {
             log.error("Error approving order {}: {}", orderId, e.getMessage(), e);
             throw new RuntimeException("Failed to approve order: " + e.getMessage(), e);
@@ -213,10 +212,11 @@ public class OrderWorkflowService {
                         order.getApprovalStatus() + ", " + order.getStatus());
             }
 
-            log.info("Updating order status to APPROVED");
+            log.info("Updating order approval status to APPROVED and order status to COMPLETED");
 
+            // 🔥 SỬA: Khi approve order thì chuyển status thành COMPLETED
             order.setApprovalStatus(Order.OrderApprovalStatus.APPROVED);
-            order.setStatus(Order.OrderStatus.APPROVED);
+            order.setStatus(Order.OrderStatus.COMPLETED); // THAY Order.OrderStatus.APPROVED bằng COMPLETED
             order.setApprovedBy(approvedBy);
             order.setApprovedAt(LocalDateTime.now());
             order.setApprovalNotes(notes);
@@ -224,9 +224,9 @@ public class OrderWorkflowService {
             orderRepository.save(order);
 
             auditLogService.log("ORDER_APPROVED", "ORDER", orderId.toString(),
-                    Map.of("approvedBy", approvedBy, "notes", notes));
+                    Map.of("approvedBy", approvedBy, "notes", notes, "newStatus", "COMPLETED"));
 
-            log.info("Order {} approved by user {}", orderId, approvedBy);
+            log.info("Order {} approved by user {} and status changed to COMPLETED", orderId, approvedBy);
 
         } catch (Exception e) {
             log.error("Error in performOrderApproval for order {}: {}", orderId, e.getMessage(), e);
@@ -291,24 +291,36 @@ public class OrderWorkflowService {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
 
-            if (!order.canBeApproved()) {
-                log.warn("Order {} cannot be approved due to status", orderId);
+            log.info("🔍 DEBUG canApproveOrder - Order ID: {}, Status: {}, ApprovalStatus: {}",
+                    orderId, order.getStatus(), order.getApprovalStatus());
+
+            // Kiểm tra điều kiện approve của order
+            boolean canBeApproved = order.canBeApproved();
+            log.info("🔍 DEBUG - Order.canBeApproved(): {}", canBeApproved);
+
+            if (!canBeApproved) {
+                log.warn("❌ Order {} cannot be approved due to status conditions", orderId);
                 return false;
             }
 
             Quote quote = quoteRepository.findById(order.getQuoteId())
                     .orElseThrow(() -> new RuntimeException("Quote not found for order: " + order.getQuoteId()));
 
+            log.info("🔍 DEBUG - Found quote ID: {}, Dealer: {}", quote.getId(), quote.getDealerId());
+
             boolean inventoryOk = checkFactoryInventoryForOrder(quote);
+            log.info("🔍 DEBUG - Factory inventory check result: {}", inventoryOk);
 
             if (!inventoryOk) {
-                log.warn("Order {} cannot be approved due to insufficient inventory", orderId);
+                log.warn("❌ Order {} cannot be approved due to insufficient factory inventory", orderId);
+            } else {
+                log.info("✅ Order {} can be approved - all conditions met", orderId);
             }
 
             return inventoryOk;
 
         } catch (Exception e) {
-            log.error("Error checking if order can be approved: {}", e.getMessage(), e);
+            log.error("❌ Error checking if order can be approved: {}", e.getMessage(), e);
             return false;
         }
     }
