@@ -49,28 +49,29 @@ public class InventoryService {
 
 
     @Transactional
-    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer initialQuantity) {
+    public Inventory createDealerInventory(Integer dealerId, Integer vehicleId, Integer quantity) {
         var dealer = dealerRepository.findById(dealerId)
                 .orElseThrow(() -> new RuntimeException("Dealer not found: " + dealerId));
         var vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found: " + vehicleId));
 
-
         var existingInventory = inventoryRepository.findByDealerIdAndVehicleIdAndInventoryType(
                 dealerId, vehicleId, Inventory.InventoryType.DEALER);
 
         if (existingInventory.isPresent()) {
-            return existingInventory.get();
+            throw new RuntimeException("Vehicle already exists in dealer inventory: " + vehicleId);
         }
-
         Inventory dealerInventory = Inventory.builder()
                 .dealer(dealer)
                 .vehicle(vehicle)
-                .availableQuantity(initialQuantity)
+                .availableQuantity(1)
                 .reservedQuantity(0)
                 .inventoryType(Inventory.InventoryType.DEALER)
                 .lastUpdated(LocalDateTime.now())
                 .build();
+
+        log.info("Added unique vehicle to dealer inventory - Dealer: {}, Vehicle: {}",
+                dealerId, vehicleId);
 
         return inventoryRepository.save(dealerInventory);
     }
@@ -211,4 +212,59 @@ public class InventoryService {
         log.info("Deducted dealer inventory - Dealer: {}, Vehicle: {}, Quantity: {}, Remaining: {}",
                 dealerId, vehicleId, quantity, dealerInventory.getAvailableQuantity());
     }
+
+    public Map<String, Integer> getDealerInventorySummary(Integer dealerId) {
+        List<Inventory> inventories = inventoryRepository.findByDealerIdAndInventoryType(dealerId, Inventory.InventoryType.DEALER);
+
+        return inventories.stream()
+                .collect(Collectors.groupingBy(
+                        inv -> inv.getVehicle().getModelName(),
+                        Collectors.summingInt(Inventory::getAvailableQuantity)
+                ));
+    }
+
+
+    public List<Map<String, Object>> getDealerInventoryDetails(Integer dealerId) {
+        List<Inventory> inventories = inventoryRepository.findByDealerIdAndInventoryType(dealerId, Inventory.InventoryType.DEALER);
+
+        return inventories.stream()
+                .map(inventory -> {
+                    Map<String, Object> detail = new HashMap<>();
+                    detail.put("id", inventory.getId());
+                    detail.put("availableQuantity", inventory.getAvailableQuantity());
+                    detail.put("reservedQuantity", inventory.getReservedQuantity());
+                    detail.put("inventoryType", inventory.getInventoryType());
+                    detail.put("lastUpdated", inventory.getLastUpdated());
+
+                    // Dealer info
+                    if (inventory.getDealer() != null) {
+                        Map<String, Object> dealerMap = new HashMap<>();
+                        dealerMap.put("dealerId", inventory.getDealer().getDealerId());
+                        dealerMap.put("name", inventory.getDealer().getName());
+                        dealerMap.put("region", inventory.getDealer().getRegion());
+                        dealerMap.put("status", inventory.getDealer().getStatus());
+                        detail.put("dealer", dealerMap);
+                    }
+
+                    // Vehicle info với VIN và engineNumber
+                    if (inventory.getVehicle() != null) {
+                        Map<String, Object> vehicleMap = new HashMap<>();
+                        vehicleMap.put("id", inventory.getVehicle().getId());
+                        vehicleMap.put("modelName", inventory.getVehicle().getModelName());
+                        vehicleMap.put("brand", inventory.getVehicle().getBrand());
+                        vehicleMap.put("yearOfManufacture", inventory.getVehicle().getYearOfManufacture());
+                        vehicleMap.put("status", inventory.getVehicle().getStatus());
+                        vehicleMap.put("listedPrice", inventory.getVehicle().getListedPrice());
+                        vehicleMap.put("batteryCapacity", inventory.getVehicle().getBatteryCapacity());
+                        vehicleMap.put("vin", inventory.getVehicle().getVin());
+                        vehicleMap.put("engineNumber", inventory.getVehicle().getEngineNumber());
+                        detail.put("vehicle", vehicleMap);
+                    }
+
+                    return detail;
+                })
+                .collect(Collectors.toList());
+    }
+
+
 }
