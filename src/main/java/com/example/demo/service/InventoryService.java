@@ -1,6 +1,9 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.InventoryGroupResponseDTO;
+import com.example.demo.dto.VehicleInventoryDetailDTO;
 import com.example.demo.entity.Inventory;
+import com.example.demo.entity.Vehicle;
 import com.example.demo.repository.InventoryRepository;
 import com.example.demo.repository.DealerRepository;
 import com.example.demo.repository.VehicleRepository;
@@ -11,6 +14,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -179,8 +183,73 @@ public class InventoryService {
         return inventoryRepository.findFactoryInventory();
     }
 
-    public List<Inventory> getDealerInventory(Integer dealerId) {
-        return inventoryRepository.findByDealerIdAndInventoryType(dealerId, Inventory.InventoryType.DEALER);
+    public List<InventoryGroupResponseDTO> getDealerInventory(Integer dealerId) {
+        List<Inventory> inventories = inventoryRepository.findByDealerIdAndInventoryType(dealerId, Inventory.InventoryType.DEALER);
+
+        // Lọc chỉ những inventory còn availableQuantity > 0
+        List<Inventory> availableInventories = inventories.stream()
+                .filter(inv -> inv.getAvailableQuantity() > 0)
+                .collect(Collectors.toList());
+
+        // Nhóm theo modelName
+        Map<String, List<Inventory>> groupedByModel = availableInventories.stream()
+                .collect(Collectors.groupingBy(inv -> inv.getVehicle().getModelName()));
+
+        // Chuyển đổi sang DTO
+        return groupedByModel.entrySet().stream()
+                .map(entry -> {
+                    List<Inventory> modelInventories = entry.getValue();
+                    Inventory firstInventory = modelInventories.get(0);
+                    Vehicle firstVehicle = firstInventory.getVehicle();
+
+                    InventoryGroupResponseDTO groupDTO = new InventoryGroupResponseDTO();
+
+                    // Thông tin chung từ vehicle
+                    groupDTO.setModelName(firstVehicle.getModelName());
+                    groupDTO.setBrand(firstVehicle.getBrand());
+                    groupDTO.setYearOfManufacture(firstVehicle.getYearOfManufacture());
+                    groupDTO.setListedPrice(firstVehicle.getListedPrice()); // Đã sửa - giữ nguyên BigDecimal
+                    groupDTO.setBatteryCapacity(firstVehicle.getBatteryCapacity());
+                    groupDTO.setStatus(firstVehicle.getStatus());
+
+                    // Thông tin vehicle type
+                    if (firstVehicle.getVehicleType() != null) {
+                        groupDTO.setVehicleType(firstVehicle.getVehicleType().getTypeName());
+                    }
+
+                    // Tính tổng số lượng
+                    Integer totalAvailable = modelInventories.stream()
+                            .mapToInt(Inventory::getAvailableQuantity)
+                            .sum();
+                    Integer totalReserved = modelInventories.stream()
+                            .mapToInt(Inventory::getReservedQuantity)
+                            .sum();
+
+                    groupDTO.setTotalAvailableQuantity(totalAvailable);
+                    groupDTO.setTotalReservedQuantity(totalReserved);
+                    groupDTO.setInventoryType(firstInventory.getInventoryType().toString());
+                    groupDTO.setLastUpdated(firstInventory.getLastUpdated());
+
+                    // Danh sách các xe cùng model
+                    List<VehicleInventoryDetailDTO> vehicleDetails = modelInventories.stream()
+                            .map(inv -> {
+                                VehicleInventoryDetailDTO detail = new VehicleInventoryDetailDTO();
+                                detail.setVehicleId(inv.getVehicle().getId());
+                                detail.setVin(inv.getVehicle().getVin());
+                                detail.setEngineNumber(inv.getVehicle().getEngineNumber());
+                                detail.setStatus(inv.getVehicle().getStatus());
+                                detail.setInventoryId(inv.getId());
+                                detail.setAvailableQuantity(inv.getAvailableQuantity());
+                                detail.setReservedQuantity(inv.getReservedQuantity());
+                                return detail;
+                            })
+                            .collect(Collectors.toList());
+
+                    groupDTO.setVehicles(vehicleDetails);
+                    return groupDTO;
+                })
+                .sorted(Comparator.comparing(InventoryGroupResponseDTO::getModelName))
+                .collect(Collectors.toList());
     }
 
     public Integer getFactoryInventoryQuantity(Integer vehicleId) {

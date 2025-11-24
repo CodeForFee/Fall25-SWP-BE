@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.InventoryGroupResponseDTO;
 import com.example.demo.entity.Inventory;
 import com.example.demo.service.InventoryService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -63,12 +64,9 @@ public class InventoryController {
 
     // Lấy tồn kho đại lý
     @GetMapping("/dealer/{dealerId}")
-    public ResponseEntity<List<Map<String, Object>>> getDealerInventory(@PathVariable Integer dealerId) {
-        List<Inventory> inventory = inventoryService.getDealerInventory(dealerId);
-        List<Map<String, Object>> response = inventory.stream()
-                .map(this::convertInventoryToMap)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<List<InventoryGroupResponseDTO>> getDealerInventory(@PathVariable Integer dealerId) {
+        List<InventoryGroupResponseDTO> result = inventoryService.getDealerInventory(dealerId);
+        return ResponseEntity.ok(result);
     }
 
     // Kiểm tra tồn kho hãng

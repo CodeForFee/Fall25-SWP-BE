@@ -1,6 +1,8 @@
 package com.example.demo.service.impl;
 
 import com.example.demo.dto.VehicleTypeResponseDTO;
+import com.example.demo.entity.Inventory;
+import com.example.demo.repository.InventoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.demo.dto.VehicleDTO;
 import com.example.demo.dto.VehicleResponseDTO;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,6 +29,7 @@ public class VehicleServiceImpl implements VehicleService {
     private final VehicleRepository repo;
     private final VehicleTypeRepository vtRepo;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final InventoryRepository inventoryRepo;
 
     @Override
     public VehicleResponseDTO create(VehicleDTO req) {
@@ -80,7 +84,20 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     public List<VehicleResponseDTO> getAll() {
-        return repo.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        List<Inventory> availableInventories = inventoryRepo
+                .findByAvailableQuantityGreaterThanOrderByVehicleIdAsc(0);
+        Map<String, Vehicle> uniqueModels = availableInventories.stream()
+                .map(Inventory::getVehicle)
+                .collect(Collectors.toMap(
+                        Vehicle::getModelName,
+                        vehicle -> vehicle,
+                        (existing, replacement) ->
+                                existing.getId() < replacement.getId() ? existing : replacement
+                ));
+        return uniqueModels.values().stream()
+                .sorted(Comparator.comparingInt(Vehicle::getId))
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override

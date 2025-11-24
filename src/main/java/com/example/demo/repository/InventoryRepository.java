@@ -68,4 +68,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Integer> {
     // Lấy factory inventory cho vehicle cụ thể
     @Query("SELECT i FROM Inventory i WHERE i.vehicle.id = :vehicleId AND i.dealer IS NULL AND i.inventoryType = 'FACTORY'")
     Optional<Inventory> findFactoryInventoryByVehicleId(@Param("vehicleId") Integer vehicleId);
+
+    List<Inventory> findByAvailableQuantityGreaterThanOrderByVehicleIdAsc(int availableQuantity);
 }
