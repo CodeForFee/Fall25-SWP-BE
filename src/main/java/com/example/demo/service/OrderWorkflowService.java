@@ -212,24 +212,44 @@ public class OrderWorkflowService {
                         order.getApprovalStatus() + ", " + order.getStatus());
             }
 
-            log.info("Updating order approval status to APPROVED and order status to COMPLETED");
-
-            // 🔥 SỬA: Khi approve order thì chuyển status thành COMPLETED
+            log.info("Updating order approval status to APPROVED");
             order.setApprovalStatus(Order.OrderApprovalStatus.APPROVED);
-            order.setStatus(Order.OrderStatus.COMPLETED); // THAY Order.OrderStatus.APPROVED bằng COMPLETED
             order.setApprovedBy(approvedBy);
             order.setApprovedAt(LocalDateTime.now());
             order.setApprovalNotes(notes);
-
+            if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+                // remainingAmount = 0 -> COMPLETED
+                order.setStatus(Order.OrderStatus.COMPLETED);
+                log.info("Order {} - remainingAmount = 0 -> status set to COMPLETED", orderId);
+            } else {
+                // remainingAmount != 0 -> ĐÃ TRẢ 1 PHẦN
+                order.setStatus(Order.OrderStatus.APPROVED);
+                log.info("Order {} - remainingAmount = {} -> status set to APPROVED (đã trả 1 phần)",
+                        orderId, order.getRemainingAmount());
+            }
             orderRepository.save(order);
+            log.info("💰 PAYMENT STATUS - Order: {}, Total: {}, Paid: {}, Remaining: {}, Final Status: {}",
+                    orderId, order.getTotalAmount(), order.getPaidAmount(),
+                    order.getRemainingAmount(), order.getStatus());
 
-            auditLogService.log("ORDER_APPROVED", "ORDER", orderId.toString(),
-                    Map.of("approvedBy", approvedBy, "notes", notes, "newStatus", "COMPLETED"));
+            Map<String, Object> auditData = new HashMap<>();
+            auditData.put("approvedBy", approvedBy);
+            auditData.put("notes", notes);
+            auditData.put("finalStatus", order.getStatus().name());
+            auditData.put("totalAmount", order.getTotalAmount());
+            auditData.put("paidAmount", order.getPaidAmount());
+            auditData.put("remainingAmount", order.getRemainingAmount());
+            auditData.put("paymentStatus", order.getPaymentStatus());
+            auditData.put("paymentPercentage", order.getPaymentPercentage());
 
-            log.info("Order {} approved by user {} and status changed to COMPLETED", orderId, approvedBy);
+            auditLogService.log("ORDER_APPROVED", "ORDER", orderId.toString(), auditData);
+
+            log.info("✅ ORDER APPROVED - Order: {} by user {}, Status: {}, Payment: {}/{} ({}%)",
+                    orderId, approvedBy, order.getStatus(), order.getPaidAmount(),
+                    order.getTotalAmount(), order.getPaymentPercentage());
 
         } catch (Exception e) {
-            log.error("Error in performOrderApproval for order {}: {}", orderId, e.getMessage(), e);
+            log.error("❌ Error in performOrderApproval for order {}: {}", orderId, e.getMessage(), e);
             throw e;
         }
     }
