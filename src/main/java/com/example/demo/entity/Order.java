@@ -127,7 +127,7 @@ public class Order {
 
     // ===== ENUMS =====
     public enum OrderStatus {
-        PENDING, APPROVED, COMPLETED, CANCELLED,DELIVERED
+        PENDING, APPROVED, COMPLETED, CANCELLED,DELIVERED,DELIVERED_APPROVED
     }
 
     public enum PaymentMethod {

@@ -191,21 +191,24 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    @Override
     @Transactional
     public OrderResponseDTO confirmDelivery(Integer orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
 
+        // Kiểm tra điều kiện trước khi xác nhận giao hàng
         if (order.getStatus() != Order.OrderStatus.COMPLETED && order.getStatus() != Order.OrderStatus.APPROVED) {
             throw new RuntimeException("Order must be COMPLETED or APPROVED before delivery confirmation");
         }
 
+        // Kiểm tra VIN và Engine Number
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(orderId);
         for (OrderDetail detail : orderDetails) {
             if (detail.getVin() == null || detail.getEngineNumber() == null) {
                 throw new RuntimeException("Vehicle VIN and Engine Number must be assigned before delivery");
             }
+
+            // Kiểm tra tồn kho đại lý
             boolean hasSufficientInventory = inventoryService.checkDealerInventory(
                     order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
 
@@ -214,16 +217,30 @@ public class OrderServiceImpl implements OrderService {
                         " in dealer: " + order.getDealerId());
             }
         }
+
+        // Trừ tồn kho đại lý
         for (OrderDetail detail : orderDetails) {
             inventoryService.deductDealerInventory(order.getDealerId(), detail.getVehicleId(), detail.getQuantity());
 
             log.info("Deducted inventory for delivery - Order: {}, Vehicle: {}, Dealer: {}, VIN: {}, Quantity: {}",
                     orderId, detail.getVehicleId(), order.getDealerId(), detail.getVin(), detail.getQuantity());
         }
-        order.setStatus(Order.OrderStatus.DELIVERED);
+
+        // 🔥 QUAN TRỌNG: Xác định trạng thái dựa trên trạng thái hiện tại
+        if (order.getStatus() == Order.OrderStatus.APPROVED) {
+            // Nếu order là APPROVED (đã trả 1 phần) -> DELIVERED_APPROVED
+            order.setStatus(Order.OrderStatus.DELIVERED_APPROVED);
+            log.info("Order {} - Status changed from APPROVED to DELIVERED_APPROVED", orderId);
+        } else {
+            // Nếu order là COMPLETED (đã trả đủ) -> DELIVERED
+            order.setStatus(Order.OrderStatus.DELIVERED);
+            log.info("Order {} - Status changed from COMPLETED to DELIVERED", orderId);
+        }
+
         Order savedOrder = orderRepository.save(order);
 
-        log.info("Order delivered successfully - Order: {}", orderId);
+        log.info("✅ DELIVERY CONFIRMED - Order: {}, Final Status: {}, Paid: {}, Remaining: {}",
+                orderId, savedOrder.getStatus(), order.getPaidAmount(), order.getRemainingAmount());
 
         return convertToResponseDTO(savedOrder);
     }
