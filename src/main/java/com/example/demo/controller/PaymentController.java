@@ -19,6 +19,7 @@ import org.springframework.web.servlet.view.RedirectView;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -76,7 +77,16 @@ public class PaymentController {
                 ));
             }
 
-            VNPayPaymentResponseDTO response = vnPayService.createPayment(paymentRequest, request);
+            // Kiểm tra paidAmount
+            if (order.getPaidAmount() == null || order.getPaidAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Số tiền thanh toán không hợp lệ",
+                        "orderId", order.getId(),
+                        "paidAmount", order.getPaidAmount()
+                ));
+            }
+
+            VNPayPaymentResponseDTO response = vnPayService.createPayment(paymentRequest, request, order.getPaidAmount());
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {

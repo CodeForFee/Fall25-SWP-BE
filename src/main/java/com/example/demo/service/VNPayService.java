@@ -49,7 +49,7 @@ public class VNPayService {
     private static final DateTimeFormatter VNPAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Transactional
-    public VNPayPaymentResponseDTO createPayment(VNPayPaymentRequestDTO paymentRequest, HttpServletRequest request) {
+    public VNPayPaymentResponseDTO createPayment(VNPayPaymentRequestDTO paymentRequest, HttpServletRequest request, BigDecimal paidAmount) {
         try {
             log.info("Creating VNPay payment for order: {}", paymentRequest.getOrderId());
 
@@ -60,15 +60,24 @@ public class VNPayService {
                 throw new RuntimeException("Order cannot process payment");
             }
 
-            BigDecimal amount = order.getTotalAmount();
+            // KIEM TRA ORDER PHAI O TRANG THAI DUOC DUYET
+            if (!isOrderApproved(order)) {
+                throw new RuntimeException("Order must be approved before creating VNPay payment. Current status: " +
+                        order.getStatus() + ", Approval status: " + order.getApprovalStatus());
+            }
 
-            Payment payment = Payment.createVNPayPayment(order, amount);
+            // Sử dụng paidAmount thay vì totalAmount
+            if (paidAmount == null || paidAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Paid amount is invalid: " + paidAmount);
+            }
+
+            Payment payment = Payment.createVNPayPayment(order, paidAmount); // Sử dụng paidAmount
             payment = paymentRepository.save(payment);
 
-            log.info("Payment created - ID: {}, TxnRef: {}, Amount: {}",
-                    payment.getId(), payment.getVnpayTxnRef(), amount);
+            log.info("Payment created - ID: {}, TxnRef: {}, Paid Amount: {}",
+                    payment.getId(), payment.getVnpayTxnRef(), paidAmount);
 
-            String paymentUrl = createVNPayPaymentUrl(payment, order, request);
+            String paymentUrl = createVNPayPaymentUrl(payment, order, request, paidAmount); // Truyền paidAmount
 
             VNPayPaymentResponseDTO response = new VNPayPaymentResponseDTO();
             response.setCode("00");
@@ -89,29 +98,46 @@ public class VNPayService {
         }
     }
 
-    private String createVNPayPaymentUrl(Payment payment, Order order, HttpServletRequest request) {
+
+    private boolean isOrderApproved(Order order) {
+        boolean isApprovalStatusValid = order.getApprovalStatus() == Order.OrderApprovalStatus.APPROVED;
+        boolean isOrderStatusValid = order.getStatus() == Order.OrderStatus.APPROVED ||
+                order.getStatus() == Order.OrderStatus.COMPLETED;
+
+        log.info("Order approval check - ID: {}, ApprovalStatus: {}, OrderStatus: {}, Result: {}",
+                order.getId(), order.getApprovalStatus(), order.getStatus(),
+                isApprovalStatusValid && isOrderStatusValid);
+
+        return isApprovalStatusValid && isOrderStatusValid;
+    }
+
+    private String createVNPayPaymentUrl(Payment payment, Order order, HttpServletRequest request, BigDecimal paidAmount) {
         try {
-            log.info("Creating VNPay URL for TxnRef: {}", payment.getVnpayTxnRef());
+            log.info("Creating VNPay URL for TxnRef: {}, Paid Amount: {}", payment.getVnpayTxnRef(), paidAmount);
             Map<String, String> vnpParams = new TreeMap<>();
             vnpParams.put("vnp_Version", "2.1.0");
             vnpParams.put("vnp_Command", "pay");
             vnpParams.put("vnp_TmnCode", vnpayTmnCode);
-            long amount = payment.getAmount().multiply(new BigDecimal(100)).longValue();
+
+            // Sử dụng paidAmount thay vì totalAmount
+            long amount = paidAmount.multiply(new BigDecimal(100)).longValue();
             vnpParams.put("vnp_Amount", String.valueOf(amount));
+
             vnpParams.put("vnp_CurrCode", "VND");
             vnpParams.put("vnp_TxnRef", payment.getVnpayTxnRef());
-            vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId());
+            vnpParams.put("vnp_OrderInfo", "Payment for order " + order.getId() + " - Amount: " + paidAmount);
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayReturnUrl);
             vnpParams.put("vnp_IpAddr", getRealClientIpAddress(request));
+
             ZonedDateTime nowVietnam = ZonedDateTime.now(VIETNAM_ZONE);
             String createDate = nowVietnam.format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_CreateDate", createDate);
             String expireDate = nowVietnam.plusMinutes(15).format(VNPAY_DATE_FORMATTER);
             vnpParams.put("vnp_ExpireDate", expireDate);
 
-            log.info("VNPay Parameters - Create Date: {}, Expire Date: {}", createDate, expireDate);
+            log.info("VNPay Parameters - Paid Amount: {}, Create Date: {}, Expire Date: {}", paidAmount, createDate, expireDate);
 
             StringBuilder hashData = new StringBuilder();
             vnpParams.forEach((key, value) -> {
@@ -127,7 +153,7 @@ public class VNPayService {
             String vnpSecureHash = hmacSHA512(vnpaySecretKey, hashDataStr);
             String finalUrl = vnpayUrl + "?" + hashDataStr + "&vnp_SecureHash=" + vnpSecureHash;
 
-            log.info("Final VNPay URL created successfully");
+            log.info("Final VNPay URL created successfully with paid amount: {}", paidAmount);
             return finalUrl;
 
         } catch (Exception e) {
@@ -276,6 +302,14 @@ public class VNPayService {
             Payment payment = paymentRepository.findByVnpayTxnRef(vnpTxnRef)
                     .orElseThrow(() -> new RuntimeException("Payment not found: " + vnpTxnRef));
 
+            // TACH paymentId RA BIEN RIENG DE SU DUNG TRONG LAMBDA
+            Integer paymentId = payment.getId();
+            Integer orderId = payment.getOrderId();
+
+            // LAY ORDER TUONG UNG - SU DUNG orderId THAY VI payment.getOrderId()
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+
             payment.setVnpayTransactionNo(vnpTransactionNo);
             payment.setVnpayBankCode(params.get("vnp_BankCode"));
             payment.setVnpayCardType(params.get("vnp_CardType"));
@@ -290,7 +324,21 @@ public class VNPayService {
             if ("00".equals(vnpResponseCode)) {
                 payment.markAsCompleted(vnpTransactionNo);
                 payment.setNotes("Payment successful via VNPay");
-                log.info("Payment completed: {}", payment.getId());
+                log.info("Payment completed: {}", paymentId);
+
+                // KIEM TRA remainingAmount CUA ORDER
+                if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+                    // NEU remainingAmount = 0 -> CHUYEN STATUS THANH COMPLETED
+                    order.setStatus(Order.OrderStatus.COMPLETED);
+                    order.setPaymentStatus(Order.PaymentStatus.PAID);
+                    orderRepository.save(order);
+                    log.info("Order {} - remainingAmount = 0 -> status set to COMPLETED", orderId);
+                } else {
+                    // NEU remainingAmount > 0 -> GIU NGUYEN STATUS APPROVED
+                    log.info("Order {} - remainingAmount = {} -> keep status APPROVED",
+                            orderId, order.getRemainingAmount());
+                }
+
             } else {
                 payment.markAsFailed();
                 payment.setNotes("Payment failed. Error code: " + vnpResponseCode);
