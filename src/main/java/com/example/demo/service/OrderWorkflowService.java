@@ -162,22 +162,25 @@ public class OrderWorkflowService {
     }
 
     public void approveOrder(Integer orderId, Integer approvedBy, String notes) {
-        log.info("=== START approveOrder - orderId: {}", orderId);
+        log.info("START approveOrder - orderId: {}", orderId);
 
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+
             if (!order.canBeApproved()) {
                 throw new RuntimeException("Order cannot be approved. Current status: " +
                         order.getApprovalStatus() + ", " + order.getStatus());
             }
             performOrderApproval(orderId, approvedBy, notes);
-            log.info("=== END approveOrder successfully - orderId: {}", orderId);
+
+            log.info("END approveOrder successfully - orderId: {}", orderId);
         } catch (Exception e) {
             log.error("Error approving order {}: {}", orderId, e.getMessage(), e);
             throw new RuntimeException("Failed to approve order: " + e.getMessage(), e);
         }
     }
+
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void handleInsufficientInventory(Integer orderId) {
@@ -198,8 +201,7 @@ public class OrderWorkflowService {
             throw e;
         }
     }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    
     protected void performOrderApproval(Integer orderId, Integer approvedBy, String notes) {
         log.info("Starting order approval transaction - orderId: {}", orderId);
 
@@ -217,18 +219,24 @@ public class OrderWorkflowService {
             order.setApprovedBy(approvedBy);
             order.setApprovedAt(LocalDateTime.now());
             order.setApprovalNotes(notes);
-            if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
-                // remainingAmount = 0 -> COMPLETED
-                order.setStatus(Order.OrderStatus.COMPLETED);
-                log.info("Order {} - remainingAmount = 0 -> status set to COMPLETED", orderId);
-            } else {
-                // remainingAmount != 0 -> ĐÃ TRẢ 1 PHẦN
+
+            if (order.getPaymentMethod() == Order.PaymentMethod.VNPAY) {
                 order.setStatus(Order.OrderStatus.APPROVED);
-                log.info("Order {} - remainingAmount = {} -> status set to APPROVED (đã trả 1 phần)",
-                        orderId, order.getRemainingAmount());
+                log.info("VNPAY Order {} - status set to APPROVED", orderId);
+            } else {
+                if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+                    order.setStatus(Order.OrderStatus.COMPLETED);
+                    log.info("Order {} - remainingAmount = 0 -> status set to COMPLETED", orderId);
+                } else {
+                    order.setStatus(Order.OrderStatus.APPROVED);
+                    log.info("Order {} - remainingAmount = {} -> status set to APPROVED (da tra 1 phan)",
+                            orderId, order.getRemainingAmount());
+                }
             }
+
             orderRepository.save(order);
-            log.info("💰 PAYMENT STATUS - Order: {}, Total: {}, Paid: {}, Remaining: {}, Final Status: {}",
+
+            log.info("PAYMENT STATUS - Order: {}, Total: {}, Paid: {}, Remaining: {}, Final Status: {}",
                     orderId, order.getTotalAmount(), order.getPaidAmount(),
                     order.getRemainingAmount(), order.getStatus());
 
@@ -241,15 +249,16 @@ public class OrderWorkflowService {
             auditData.put("remainingAmount", order.getRemainingAmount());
             auditData.put("paymentStatus", order.getPaymentStatus());
             auditData.put("paymentPercentage", order.getPaymentPercentage());
+            auditData.put("paymentMethod", order.getPaymentMethod().name());
 
             auditLogService.log("ORDER_APPROVED", "ORDER", orderId.toString(), auditData);
 
-            log.info("✅ ORDER APPROVED - Order: {} by user {}, Status: {}, Payment: {}/{} ({}%)",
+            log.info("ORDER APPROVED - Order: {} by user {}, Status: {}, Payment: {}/{} ({}%), Method: {}",
                     orderId, approvedBy, order.getStatus(), order.getPaidAmount(),
-                    order.getTotalAmount(), order.getPaymentPercentage());
+                    order.getTotalAmount(), order.getPaymentPercentage(), order.getPaymentMethod());
 
         } catch (Exception e) {
-            log.error("❌ Error in performOrderApproval for order {}: {}", orderId, e.getMessage(), e);
+            log.error("Error in performOrderApproval for order {}: {}", orderId, e.getMessage(), e);
             throw e;
         }
     }
