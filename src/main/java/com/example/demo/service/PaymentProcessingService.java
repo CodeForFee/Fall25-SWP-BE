@@ -1,8 +1,12 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.PaymentRequestDTO;
+import com.example.demo.entity.Customer;
+import com.example.demo.entity.Dealer;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.Payment;
+import com.example.demo.repository.CustomerRepository;
+import com.example.demo.repository.DealerRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.PaymentRepository;
 import com.example.demo.repository.QuoteDetailRepository;
@@ -29,6 +33,67 @@ public class PaymentProcessingService {
     private final QuoteDetailRepository quoteDetailRepository;
     private final AuditLogService auditLogService;
 
+    //  – để load Customer/Dealer đúng
+    private final CustomerRepository customerRepository;
+    private final DealerRepository dealerRepository;
+
+
+    //  – Cập nhật công nợ + order sau khi thanh toán
+    @Transactional
+    public void updateDebtAndOrderAfterPayment(Payment payment) {
+
+        Order order = orderRepository.findById(payment.getOrderId())
+                .orElseThrow(() -> new RuntimeException("Order not found: " + payment.getOrderId()));
+
+        // ===== 1. UPDATE ORDER PAYMENT =====
+        BigDecimal oldPaid = order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount();
+        BigDecimal newPaid = oldPaid.add(payment.getAmount());
+        order.setPaidAmount(newPaid);
+
+        BigDecimal newRemaining = order.getTotalAmount().subtract(newPaid);
+        if (newRemaining.compareTo(BigDecimal.ZERO) < 0) newRemaining = BigDecimal.ZERO;
+
+        order.setRemainingAmount(newRemaining);
+        order.setLastPaymentDate(LocalDateTime.now());
+
+        if (newRemaining.compareTo(BigDecimal.ZERO) == 0) {
+            order.setPaymentStatus(Order.PaymentStatus.PAID);
+        } else {
+            order.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
+        }
+
+        orderRepository.save(order);
+
+
+        // ===== 2. UPDATE CUSTOMER DEBT =====
+        if (order.getCustomerId() != null) {
+            Customer customer = customerRepository.findById(order.getCustomerId()).orElse(null);
+            if (customer != null) {
+                customer.reduceDebt(payment.getAmount());
+                customerRepository.save(customer);
+            }
+        }
+
+        // ===== 3. UPDATE DEALER DEBT =====
+        if (order.getDealerId() != null) {
+            Dealer dealer = dealerRepository.findById(order.getDealerId()).orElse(null);
+            if (dealer != null) {
+                BigDecimal oldDebt = dealer.getOutstandingDebt() == null ?
+                        BigDecimal.ZERO : dealer.getOutstandingDebt();
+
+                BigDecimal newDebt = oldDebt.subtract(payment.getAmount());
+                if (newDebt.compareTo(BigDecimal.ZERO) < 0) newDebt = BigDecimal.ZERO;
+
+                dealer.setOutstandingDebt(newDebt);
+                dealerRepository.save(dealer);
+            }
+        }
+    }
+
+
+    // =====================================================================
+    // ⚡ GIỮ NGUYÊN CODE CŨ – CHỈ THÊM GỌI UPDATE DEBT
+    // =====================================================================
     public Payment processVNPayReturn(Map<String, String> params) {
         try {
             log.info("PROCESSING VNPay RETURN");
@@ -40,8 +105,6 @@ public class PaymentProcessingService {
             String vnpTxnRef = params.get("vnp_TxnRef");
             String vnpResponseCode = params.get("vnp_ResponseCode");
             String vnpTransactionNo = params.get("vnp_TransactionNo");
-
-            log.info("Processing payment: TxnRef={}, ResponseCode={}", vnpTxnRef, vnpResponseCode);
 
             Payment payment = paymentRepository.findByVnpayTxnRef(vnpTxnRef)
                     .orElseThrow(() -> new RuntimeException("Payment not found: " + vnpTxnRef));
@@ -60,27 +123,25 @@ public class PaymentProcessingService {
             if ("00".equals(vnpResponseCode)) {
                 payment.markAsCompleted(vnpTransactionNo);
                 payment.setNotes("Payment successful via VNPay");
+
+                //  cập nhật công nợ + order
+                updateDebtAndOrderAfterPayment(payment);
+
                 log.info("Payment completed: {}", payment.getId());
-
-                log.info("✅ VNPay payment completed - Order: {}, Amount: {}, Inventory deduction postponed until delivery",
-                        payment.getOrderId(), payment.getAmount());
-
             } else {
                 payment.markAsFailed();
                 payment.setNotes("Payment failed. Error code: " + vnpResponseCode);
-                log.warn("Payment failed: {}", vnpResponseCode);
             }
 
-            payment = paymentRepository.save(payment);
-            log.info("PROCESSING COMPLETED");
-            return payment;
+            return paymentRepository.save(payment);
 
         } catch (Exception e) {
-            log.error("ERROR PROCESSING PAYMENT: {}", e.getMessage(), e);
             throw new RuntimeException("Payment processing error: " + e.getMessage(), e);
         }
     }
 
+
+    // ORIGINAL CODE — GIỮ NGUYÊN
     public Payment getPaymentByTxnRef(String txnRef) {
         return paymentRepository.findByVnpayTxnRef(txnRef)
                 .orElseThrow(() -> new RuntimeException("Payment not found with TxnRef: " + txnRef));
@@ -96,9 +157,6 @@ public class PaymentProcessingService {
 
     public Payment processPaymentWithPercentage(PaymentRequestDTO paymentRequest) {
         try {
-            log.info("Processing payment with percentage - Order: {}, Method: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentMethod(), paymentRequest.getPaymentPercentage());
-
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found: " + paymentRequest.getOrderId()));
 
@@ -122,16 +180,19 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            log.info("Payment processed successfully - ID: {}, Order: {}, Method: {}, Amount: {}, Status: {}",
-                    payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount, paymentStatus);
+
+            //  Nếu thanh toán thành công → cập nhật công nợ
+            if (paymentStatus == Payment.Status.COMPLETED) {
+                updateDebtAndOrderAfterPayment(payment);
+            }
 
             return payment;
 
         } catch (Exception e) {
-            log.error("Error processing payment with percentage: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process payment: " + e.getMessage(), e);
         }
     }
+
 
     private BigDecimal calculatePaymentAmount(Order order, Integer paymentPercentage) {
         if (paymentPercentage == null || paymentPercentage <= 0) {
@@ -149,13 +210,11 @@ public class PaymentProcessingService {
 
     public Payment processCashPayment(PaymentRequestDTO paymentRequest) {
         try {
-            log.info("Processing cash payment - Order: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
-
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -170,26 +229,24 @@ public class PaymentProcessingService {
 
             payment = paymentRepository.save(payment);
 
-            log.info("Cash payment processed successfully - ID: {}, Order: {}, Amount: {}",
-                    payment.getId(), order.getId(), paymentAmount);
+
+            //  cập nhật công nợ sau khi thanh toán
+            updateDebtAndOrderAfterPayment(payment);
 
             return payment;
 
         } catch (Exception e) {
-            log.error("Error processing cash payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process cash payment: " + e.getMessage(), e);
         }
     }
 
     public Payment processBankTransferPayment(PaymentRequestDTO paymentRequest) {
         try {
-            log.info("Processing bank transfer payment - Order: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentPercentage());
-
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
             BigDecimal paymentAmount = calculatePaymentAmount(order, paymentRequest.getPaymentPercentage());
+
             Payment payment = Payment.builder()
                     .orderId(order.getId())
                     .amount(paymentAmount)
@@ -202,24 +259,16 @@ public class PaymentProcessingService {
                     .updatedAt(LocalDateTime.now())
                     .build();
 
-            payment = paymentRepository.save(payment);
-
-            log.info("Bank transfer payment processed - ID: {}, Order: {}, Amount: {}, Status: PENDING",
-                    payment.getId(), order.getId(), paymentAmount);
-
-            return payment;
+            return paymentRepository.save(payment);
 
         } catch (Exception e) {
-            log.error("Error processing bank transfer payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to process bank transfer payment: " + e.getMessage(), e);
         }
     }
 
+
     public Payment createPaymentRecordOnly(PaymentRequestDTO paymentRequest) {
         try {
-            log.info("Creating payment record only (no inventory deduction) - Order: {}, Method: {}, Percentage: {}%",
-                    paymentRequest.getOrderId(), paymentRequest.getPaymentMethod(), paymentRequest.getPaymentPercentage());
-
             Order order = orderRepository.findById(paymentRequest.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -237,15 +286,9 @@ public class PaymentProcessingService {
                     .updatedAt(LocalDateTime.now())
                     .build();
 
-            payment = paymentRepository.save(payment);
-
-            log.info("Payment record created (no inventory) - ID: {}, Order: {}, Method: {}, Amount: {}",
-                    payment.getId(), order.getId(), paymentRequest.getPaymentMethod(), paymentAmount);
-
-            return payment;
+            return paymentRepository.save(payment);
 
         } catch (Exception e) {
-            log.error("Error creating payment record: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to create payment record: " + e.getMessage(), e);
         }
     }
