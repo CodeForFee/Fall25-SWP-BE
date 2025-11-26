@@ -119,7 +119,7 @@ public class VNPayService {
             vnpParams.put("vnp_Command", "pay");
             vnpParams.put("vnp_TmnCode", vnpayTmnCode);
 
-            // Sử dụng paidAmount thay vì totalAmount
+            
             long amount = paidAmount.multiply(new BigDecimal(100)).longValue();
             vnpParams.put("vnp_Amount", String.valueOf(amount));
 
@@ -175,7 +175,6 @@ public class VNPayService {
     }
 
     private String getRealClientIpAddress(HttpServletRequest request) {
-        // Lấy IP thực của client
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
             return xForwardedFor.split(",")[0].trim();
@@ -302,11 +301,11 @@ public class VNPayService {
             Payment payment = paymentRepository.findByVnpayTxnRef(vnpTxnRef)
                     .orElseThrow(() -> new RuntimeException("Payment not found: " + vnpTxnRef));
 
-            // TACH paymentId RA BIEN RIENG DE SU DUNG TRONG LAMBDA
+            log.info("Current payment status: {}", payment.getStatus());
+
             Integer paymentId = payment.getId();
             Integer orderId = payment.getOrderId();
 
-            // LAY ORDER TUONG UNG - SU DUNG orderId THAY VI payment.getOrderId()
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
 
@@ -324,17 +323,15 @@ public class VNPayService {
             if ("00".equals(vnpResponseCode)) {
                 payment.markAsCompleted(vnpTransactionNo);
                 payment.setNotes("Payment successful via VNPay");
-                log.info("Payment completed: {}", paymentId);
+                log.info("Payment completed: {} - Status changed from PENDING to COMPLETED", paymentId);
 
-                // KIEM TRA remainingAmount CUA ORDER
+                // Xử lý order status
                 if (order.getRemainingAmount() != null && order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
-                    // NEU remainingAmount = 0 -> CHUYEN STATUS THANH COMPLETED
                     order.setStatus(Order.OrderStatus.COMPLETED);
                     order.setPaymentStatus(Order.PaymentStatus.PAID);
                     orderRepository.save(order);
                     log.info("Order {} - remainingAmount = 0 -> status set to COMPLETED", orderId);
                 } else {
-                    // NEU remainingAmount > 0 -> GIU NGUYEN STATUS APPROVED
                     log.info("Order {} - remainingAmount = {} -> keep status APPROVED",
                             orderId, order.getRemainingAmount());
                 }
@@ -346,6 +343,7 @@ public class VNPayService {
             }
 
             payment = paymentRepository.save(payment);
+            log.info("FINAL PAYMENT STATUS: {}", payment.getStatus());
             log.info("PROCESSING COMPLETED");
             return payment;
 
