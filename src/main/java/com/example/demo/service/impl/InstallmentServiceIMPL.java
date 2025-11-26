@@ -7,19 +7,24 @@ import com.example.demo.entity.Customer;
 import com.example.demo.entity.Dealer;
 import com.example.demo.entity.InstallmentSchedule;
 import com.example.demo.entity.Order;
+import com.example.demo.entity.Payment;
 import com.example.demo.repository.CustomerRepository;
 import com.example.demo.repository.DealerRepository;
 import com.example.demo.repository.InstallmentScheduleRepository;
 import com.example.demo.repository.OrderRepository;
+import com.example.demo.repository.PaymentRepository;
 import com.example.demo.service.InstallmentService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,54 +37,44 @@ public class InstallmentServiceIMPL implements InstallmentService {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final DealerRepository dealerRepository;
+    private final PaymentRepository paymentRepository;
 
-    private static final BigDecimal VAT_RATE = new BigDecimal("0.10"); // 10%
-
-    //  1. Xem trước kế hoạch trả góp (chưa lưu DB)
+    /**
+     * 1. Xem trước kế hoạch trả góp (Không lưu DB)
+     */
     @Override
     public InstallmentPlanDTO previewInstallmentPlan(InstallmentRequest req) {
-        BigDecimal basePrice = req.getTotalAmount();
+
+        BigDecimal totalAmount = req.getTotalAmount();
         int months = req.getMonths();
-        BigDecimal annualRate = req.getAnnualInterestRate()
-                .divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
+        BigDecimal annualRate = req.getAnnualInterestRate(); // 0–100
         LocalDate firstDue = req.getFirstDueDate();
 
-        // Tính VAT
-        BigDecimal vat = basePrice.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal totalAfterVat = basePrice.add(vat);
+        // Lãi suất đơn giản (flat rate)
+        BigDecimal totalInterest = totalAmount
+                .multiply(annualRate)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-        // Lãi suất tháng
-        BigDecimal monthlyRate = annualRate.divide(new BigDecimal("12"), 6, RoundingMode.HALF_UP);
-        BigDecimal principalPerMonth = totalAfterVat.divide(new BigDecimal(months), 2, RoundingMode.HALF_UP);
+        BigDecimal totalPayable = totalAmount.add(totalInterest);
 
-        BigDecimal totalInterest = BigDecimal.ZERO;
-        BigDecimal remainingPrincipal = totalAfterVat;
+        // Trả đều theo tháng
+        BigDecimal monthlyPayment = totalPayable
+                .divide(BigDecimal.valueOf(months), 2, RoundingMode.HALF_UP);
 
         List<InstallmentScheduleDTO> schedule = new ArrayList<>();
 
         for (int i = 1; i <= months; i++) {
-            BigDecimal interest = remainingPrincipal.multiply(monthlyRate).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal totalPayment = principalPerMonth.add(interest);
-            totalInterest = totalInterest.add(interest);
-
             schedule.add(InstallmentScheduleDTO.builder()
-
                     .installmentNumber(i)
-                    .amount(totalPayment)
+                    .amount(monthlyPayment)
                     .dueDate(firstDue.plusMonths(i - 1))
                     .paidDate(null)
                     .status("PENDING")
                     .build());
-
-            remainingPrincipal = remainingPrincipal.subtract(principalPerMonth);
         }
 
-        BigDecimal totalPayable = totalAfterVat.add(totalInterest);
-        BigDecimal monthlyPayment = totalPayable.divide(new BigDecimal(months), 2, RoundingMode.HALF_UP);
-
         return InstallmentPlanDTO.builder()
-                .totalAmount(basePrice)
-                .vatAmount(vat)
+                .totalAmount(totalAmount)
                 .interestAmount(totalInterest)
                 .totalPayable(totalPayable)
                 .monthlyPayment(monthlyPayment)
@@ -89,86 +84,130 @@ public class InstallmentServiceIMPL implements InstallmentService {
                 .build();
     }
 
-    //  2. Sinh lịch trả góp thật trong DB khi Order được tạo
+    /**
+     * 2. Tạo lịch trả góp thực tế vào DB
+     */
     @Override
     @Transactional
     public List<InstallmentSchedule> generateSchedule(Integer orderId, InstallmentRequest req) {
-        InstallmentPlanDTO plan = previewInstallmentPlan(req);
 
+        InstallmentPlanDTO plan = previewInstallmentPlan(req);
         List<InstallmentSchedule> entities = new ArrayList<>();
+
         for (InstallmentScheduleDTO dto : plan.getSchedule()) {
-            InstallmentSchedule entity = InstallmentSchedule.builder()
+            entities.add(InstallmentSchedule.builder()
                     .orderId(orderId)
                     .installmentNumber(dto.getInstallmentNumber())
                     .amount(dto.getAmount())
                     .dueDate(dto.getDueDate())
                     .status(InstallmentSchedule.InstallmentStatus.PENDING)
-                    .build();
-            entities.add(entity);
+                    .build());
         }
 
         List<InstallmentSchedule> saved = installmentScheduleRepository.saveAll(entities);
-        log.info(" Đã tạo {} kỳ trả góp cho đơn hàng ID: {}", saved.size(), orderId);
+        log.info("Đã tạo {} kỳ trả góp cho Order ID: {}", saved.size(), orderId);
+
         return saved;
     }
 
-    //  3. Đánh dấu kỳ trả góp đã thanh toán + Cập nhật công nợ tự động
+    /**
+     * 3. Thanh toán 1 kỳ trả góp + cập nhật công nợ + tạo Payment record
+     */
     @Override
     @Transactional
     public InstallmentSchedule markInstallmentPaid(Integer scheduleId) {
-        InstallmentSchedule schedule = installmentScheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy kỳ trả góp với ID: " + scheduleId));
 
-        // Cập nhật trạng thái kỳ trả góp
+        InstallmentSchedule schedule = installmentScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy kỳ trả góp."));
+
+        // Đánh dấu đã thanh toán
         schedule.setStatus(InstallmentSchedule.InstallmentStatus.PAID);
         schedule.setPaidDate(LocalDate.now());
-        schedule.setNote("Thanh toán thành công vào " + LocalDate.now());
-
-        // Lấy thông tin đơn hàng liên quan
-        Order order = orderRepository.findById(schedule.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng liên quan."));
+        schedule.setNote("Thanh toán kỳ trả góp #" + schedule.getInstallmentNumber());
 
         BigDecimal paymentAmount = schedule.getAmount();
 
-        //  Cập nhật công nợ khách hàng
+        // Lấy Order
+        Order order = orderRepository.findById(schedule.getOrderId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng."));
+
+        // ======= UPDATE CUSTOMER DEBT =======
         if (order.getCustomerId() != null) {
             customerRepository.findById(order.getCustomerId()).ifPresent(customer -> {
-                customer.reduceDebt(paymentAmount);
+
+                if (customer.getTotalDebt() == null)
+                    customer.setTotalDebt(BigDecimal.ZERO);
+
+                BigDecimal newDebt = customer.getTotalDebt().subtract(paymentAmount);
+                if (newDebt.compareTo(BigDecimal.ZERO) < 0) newDebt = BigDecimal.ZERO;
+
+                customer.setTotalDebt(newDebt);
                 customerRepository.save(customer);
-                log.info(" Cập nhật công nợ khách hàng [{}]: -{} VNĐ → Còn lại: {} VNĐ",
-                        customer.getFullName(), paymentAmount, customer.getTotalDebt());
+
+                log.info("Cập nhật công nợ khách hàng {}: -{} → {}",
+                        customer.getFullName(), paymentAmount, newDebt);
             });
         }
 
-        //  Cập nhật công nợ đại lý
+        // ======= UPDATE DEALER DEBT =======
         if (order.getDealerId() != null) {
             dealerRepository.findById(order.getDealerId()).ifPresent(dealer -> {
-                if (dealer.getOutstandingDebt() == null) {
+
+                if (dealer.getOutstandingDebt() == null)
                     dealer.setOutstandingDebt(BigDecimal.ZERO);
-                }
 
                 BigDecimal newDebt = dealer.getOutstandingDebt().subtract(paymentAmount);
-                if (newDebt.compareTo(BigDecimal.ZERO) < 0) {
-                    newDebt = BigDecimal.ZERO;
-                }
+                if (newDebt.compareTo(BigDecimal.ZERO) < 0) newDebt = BigDecimal.ZERO;
 
                 dealer.setOutstandingDebt(newDebt);
                 dealerRepository.save(dealer);
 
-                log.info(" Cập nhật công nợ đại lý [{}]: -{} VNĐ → Còn lại: {} VNĐ",
+                log.info("Cập nhật công nợ đại lý {}: -{} → {}",
                         dealer.getName(), paymentAmount, newDebt);
             });
         }
 
-        //  Lưu kỳ trả góp
-        InstallmentSchedule updatedSchedule = installmentScheduleRepository.save(schedule);
-        log.info("Kỳ trả góp #{} đã thanh toán thành công (Order ID: {}).",
-                updatedSchedule.getInstallmentNumber(), schedule.getOrderId());
+        // ======= UPDATE ORDER PAID AMOUNT =======
+        BigDecimal oldPaid = order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount();
+        BigDecimal newPaid = oldPaid.add(paymentAmount);
+        order.setPaidAmount(newPaid);
 
-        return updatedSchedule;
+        BigDecimal remaining = order.getTotalAmount().subtract(newPaid);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) remaining = BigDecimal.ZERO;
+
+        order.setRemainingAmount(remaining);
+
+        if (remaining.compareTo(BigDecimal.ZERO) == 0)
+            order.setPaymentStatus(Order.PaymentStatus.PAID);
+        else
+            order.setPaymentStatus(Order.PaymentStatus.PARTIALLY_PAID);
+
+        order.setLastPaymentDate(LocalDateTime.now());
+        orderRepository.save(order);
+
+        // ======= CREATE PAYMENT HISTORY RECORD =======
+        Payment payment = Payment.builder()
+                .orderId(order.getId())
+                .amount(paymentAmount)
+                .paymentMethod(Payment.PaymentMethod.CASH) // hoặc INSTALLMENT nếu bạn muốn thêm enum
+                .paymentPercentage(null)
+                .status(Payment.Status.COMPLETED)
+                .notes("Thanh toán kỳ trả góp #" + schedule.getInstallmentNumber())
+                .paymentDate(LocalDate.now())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        paymentRepository.save(payment);
+
+        log.info("Đã tạo Payment record cho kỳ trả góp #{}", schedule.getInstallmentNumber());
+
+        return installmentScheduleRepository.save(schedule);
     }
 
-    //  4. Lấy danh sách các kỳ trả góp theo Order
+    /**
+     * 4. Lấy danh sách lịch trả góp theo Order
+     */
     @Override
     public List<InstallmentSchedule> getSchedulesByOrderId(Integer orderId) {
         return installmentScheduleRepository.findByOrderId(orderId);
